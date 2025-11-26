@@ -11,16 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
-interface Storybook {
-  id: number;
-  imageUrl: string;
-  title: string;
-  author: string;
-  categories: string[];
-  likes: number;
-  isBookmarked: boolean;
-}
+import { type Storybook } from '@/store';
 
 interface ExplorePageProps {
   storybooks: Storybook[];

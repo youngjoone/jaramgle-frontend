@@ -6,16 +6,8 @@ import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-
-interface Storybook {
-  id: number;
-  imageUrl: string;
-  title: string;
-  author: string;
-  categories: string[];
-  likes: number;
-  isShared: boolean;
-}
+import { AlertPopup } from '@/components/ui/alert-popup';
+import { type Storybook } from '@/store';
 
 interface GalleryPageProps {
   storybooks: Storybook[];
@@ -249,6 +241,29 @@ interface GalleryCardProps {
 }
 
 function GalleryCard({ storybook, onToggleShare, onDelete, onViewStorybook }: GalleryCardProps) {
+  const [showDeletePopup, setShowDeletePopup] = useState(false);
+  const [showSharePopup, setShowSharePopup] = useState(false);
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeletePopup(true);
+  };
+
+  const handleShareClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowSharePopup(true);
+  };
+
+  const confirmDelete = () => {
+    onDelete(storybook.id);
+    setShowDeletePopup(false);
+  };
+
+  const confirmShare = () => {
+    onToggleShare(storybook.id);
+    setShowSharePopup(false);
+  };
+
   return (
     <motion.div
       className="group cursor-pointer bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_16px_rgba(102,187,106,0.2)] border border-[#E0E0E0] hover:border-[#66BB6A] transition-all duration-300 relative overflow-hidden rounded-xl"
@@ -266,20 +281,17 @@ function GalleryCard({ storybook, onToggleShare, onDelete, onViewStorybook }: Ga
             className="w-full h-full object-cover"
           />
 
-          {/* Hover Overlay with Actions */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#424242]/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          {/* Hover Overlay with Actions - Always visible on mobile/tablet, hover on desktop (1920px+) */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#424242]/90 via-transparent to-transparent opacity-100 min-[1920px]:opacity-0 min-[1920px]:group-hover:opacity-100 transition-opacity duration-300">
             <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleShare(storybook.id);
-                }}
+                onClick={handleShareClick}
                 className={`gap-2 rounded-full px-4 backdrop-blur-md border ${
                   storybook.isShared
                     ? 'bg-[#66BB6A] text-white hover:bg-[#388E3C] border-white/20 shadow-[0_4px_16px_rgba(102,187,106,0.3)]'
-                    : 'bg-white/90 text-[#66BB6A] hover:bg-white border-white/40 shadow-[0_4px_16px_rgba(255,255,255,0.4)]'
+                    : 'bg-white/90 text-[#66BB6A] hover:bg-white hover:text-[#388E3C] border-white/40 shadow-[0_4px_16px_rgba(255,255,255,0.4)]'
                 } font-semibold`}
               >
                 <Share2 className="w-4 h-4" />
@@ -289,10 +301,7 @@ function GalleryCard({ storybook, onToggleShare, onDelete, onViewStorybook }: Ga
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(storybook.id);
-                }}
+                onClick={handleDeleteClick}
                 className="w-9 h-9 bg-white/90 hover:bg-white text-red-500 hover:text-red-600 rounded-full backdrop-blur-md border border-white/40 shadow-[0_4px_16px_rgba(255,255,255,0.4)]"
               >
                 <Trash2 className="w-4 h-4" />
@@ -331,6 +340,34 @@ function GalleryCard({ storybook, onToggleShare, onDelete, onViewStorybook }: Ga
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Popup */}
+      <AlertPopup
+        isOpen={showDeletePopup}
+        onClose={() => setShowDeletePopup(false)}
+        onConfirm={confirmDelete}
+        title="동화책 삭제"
+        description={`"${storybook.title}"을(를) 정말 삭제하시겠습니까? 삭제된 동화책은 복구할 수 없습니다.`}
+        type="warning"
+        confirmText="삭제"
+        cancelText="취소"
+      />
+
+      {/* Share Confirmation Popup */}
+      <AlertPopup
+        isOpen={showSharePopup}
+        onClose={() => setShowSharePopup(false)}
+        onConfirm={confirmShare}
+        title={storybook.isShared ? "공유 해제" : "동화책 공유"}
+        description={
+          storybook.isShared
+            ? `"${storybook.title}"의 공유를 해제하시겠습니까? 도서관에서 더 이상 다른 사용자들이 볼 수 없게 됩니다.`
+            : `"${storybook.title}"을(를) 도서관에 공유하시겠습니까? 다른 사용자들이 이 동화책을 볼 수 있게 됩니다.`
+        }
+        type="info"
+        confirmText={storybook.isShared ? "공유 해제" : "공유하기"}
+        cancelText="취소"
+      />
     </motion.div>
   );
 }
