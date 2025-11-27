@@ -33,7 +33,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     }
 
     // 이미 로그인/프로필이 있으면 통과
-    if (isLoggedIn && user) {
+    if (user) {
       setIsChecking(false);
       return;
     }

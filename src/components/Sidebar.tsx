@@ -23,11 +23,11 @@ const bottomItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, user } = useAuthStore();
   const [showLoginPopup, setShowLoginPopup] = useState(false);
 
   // 로그인 안 되어있으면 로그인 필요 버튼들 비활성화
-  const needsLogin = !isLoggedIn;
+  const needsLogin = !(isLoggedIn || user);
 
   const handleNavClick = (e: React.MouseEvent, item: typeof navItems[0]) => {
     if (needsLogin && item.requiresAuth) {
