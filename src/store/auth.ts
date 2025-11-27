@@ -3,17 +3,23 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+interface UserProfile {
+  id: number;
+  email: string;
+  name: string;
+  provider: string;
+  role: string;
+}
+
 interface AuthState {
   isLoggedIn: boolean;
   isGuestMode: boolean;
-  user: {
-    name: string;
-    email: string;
-  } | null;
-  login: (user?: { name: string; email: string }) => void;
+  user: UserProfile | null;
+  login: (user: UserProfile) => void;
   logout: () => void;
   enterGuestMode: () => void;
   exitGuestMode: () => void;
+  setUser: (user: UserProfile | null) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -25,7 +31,7 @@ export const useAuthStore = create<AuthState>()(
       login: (user) => set({
         isLoggedIn: true,
         isGuestMode: false,
-        user: user || { name: '사용자', email: 'user@example.com' }
+        user
       }),
       logout: () => set({
         isLoggedIn: false,
@@ -34,6 +40,10 @@ export const useAuthStore = create<AuthState>()(
       }),
       enterGuestMode: () => set({ isGuestMode: true }),
       exitGuestMode: () => set({ isGuestMode: false }),
+      setUser: (user) => set((state) => ({
+        user,
+        isLoggedIn: !!user && !state.isGuestMode
+      })),
     }),
     {
       name: 'auth-storage',

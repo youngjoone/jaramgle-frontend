@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store';
+import { getOAuthUrl } from '@/lib/api';
 
 interface Star {
   id: number;
@@ -35,11 +36,11 @@ interface Sparkle {
 
 export function LoginPage() {
   const router = useRouter();
-  const { login, enterGuestMode } = useAuthStore();
+  const { enterGuestMode } = useAuthStore();
 
-  const handleLogin = () => {
-    login();
-    router.push('/library');
+  const redirectToOAuth = (provider: "google" | "kakao" | "naver") => {
+    const url = getOAuthUrl(provider);
+    window.location.href = url;
   };
 
   const handleExplore = () => {
@@ -242,7 +243,7 @@ export function LoginPage() {
               <Button
                 onClick={() => {
                   setShowSignUpModal(false);
-                  handleLogin();
+                  redirectToOAuth("google");
                 }}
                 className="w-full bg-white hover:bg-white/90 text-[var(--text-primary)] border border-[var(--primary)]/20 shadow-[0_4px_16px_rgba(102,187,106,0.1)] hover:shadow-[0_8px_24px_rgba(102,187,106,0.2)] rounded-2xl h-14 font-semibold transition-all duration-[var(--duration-normal)] touch-target"
               >
@@ -271,7 +272,7 @@ export function LoginPage() {
               <Button
                 onClick={() => {
                   setShowSignUpModal(false);
-                  handleLogin();
+                  redirectToOAuth("kakao");
                 }}
                 className="w-full bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] border-0 shadow-[0_4px_16px_rgba(254,229,0,0.3)] hover:shadow-[0_8px_24px_rgba(254,229,0,0.4)] rounded-2xl h-14 font-semibold transition-all duration-300"
               >
@@ -285,7 +286,7 @@ export function LoginPage() {
               <Button
                 onClick={() => {
                   setShowSignUpModal(false);
-                  handleLogin();
+                  redirectToOAuth("naver");
                 }}
                 className="w-full bg-[#03C75A] hover:bg-[#02B350] text-white border-0 shadow-[0_4px_16px_rgba(3,199,90,0.3)] hover:shadow-[0_8px_24px_rgba(3,199,90,0.4)] rounded-2xl h-14 font-semibold transition-all duration-300"
               >
@@ -339,7 +340,7 @@ export function LoginPage() {
               <Button
                 onClick={() => {
                   setShowLoginModal(false);
-                  handleLogin();
+                  redirectToOAuth("google");
                 }}
                 className="w-full bg-white hover:bg-white/90 text-[var(--text-primary)] border border-[var(--primary)]/20 shadow-[0_4px_16px_rgba(102,187,106,0.1)] hover:shadow-[0_8px_24px_rgba(102,187,106,0.2)] rounded-2xl h-14 font-semibold transition-all duration-[var(--duration-normal)] touch-target"
               >
@@ -368,7 +369,7 @@ export function LoginPage() {
               <Button
                 onClick={() => {
                   setShowLoginModal(false);
-                  handleLogin();
+                  redirectToOAuth("kakao");
                 }}
                 className="w-full bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] border-0 shadow-[0_4px_16px_rgba(254,229,0,0.3)] hover:shadow-[0_8px_24px_rgba(254,229,0,0.4)] rounded-2xl h-14 font-semibold transition-all duration-300"
               >
@@ -382,7 +383,7 @@ export function LoginPage() {
               <Button
                 onClick={() => {
                   setShowLoginModal(false);
-                  handleLogin();
+                  redirectToOAuth("naver");
                 }}
                 className="w-full bg-[#03C75A] hover:bg-[#02B350] text-white border-0 shadow-[0_4px_16px_rgba(3,199,90,0.3)] hover:shadow-[0_8px_24px_rgba(3,199,90,0.4)] rounded-2xl h-14 font-semibold transition-all duration-300"
               >

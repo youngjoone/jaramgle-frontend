@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, ReactNode } from 'react';
+import { useEffect, useState, ReactNode, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store';
+import { authApi } from '@/lib/api';
 
 interface AuthGuardProps {
   children: ReactNode;
@@ -11,22 +12,47 @@ interface AuthGuardProps {
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isLoggedIn, isGuestMode } = useAuthStore();
+  const { isLoggedIn, isGuestMode, setUser, user } = useAuthStore();
   const [isChecking, setIsChecking] = useState(true);
+  const bootstrapped = useRef(false);
 
   useEffect(() => {
-    // Skip auth check for guest mode on library page (둘러보기 allowed)
+    if (bootstrapped.current) return;
+    bootstrapped.current = true;
+
     const isGuestAllowedPage = pathname === '/library';
 
-    if (!isLoggedIn && !isGuestMode) {
-      router.replace('/login');
-    } else if (isGuestMode && !isGuestAllowedPage) {
-      // Guest mode only allows access to library
-      router.replace('/login');
-    } else {
-      setIsChecking(false);
+    // Guest mode 처리
+    if (isGuestMode) {
+      if (isGuestAllowedPage) {
+        setIsChecking(false);
+      } else {
+        router.replace('/login');
+      }
+      return;
     }
-  }, [isLoggedIn, isGuestMode, pathname, router]);
+
+    // 이미 로그인/프로필이 있으면 통과
+    if (isLoggedIn && user) {
+      setIsChecking(false);
+      return;
+    }
+
+    // 세션 부팅 시도
+    (async () => {
+      try {
+        const profile = await authApi.bootstrapSession();
+        if (profile) {
+          setUser(profile);
+          setIsChecking(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Session bootstrap failed', err);
+      }
+      router.replace('/login');
+    })();
+  }, [isLoggedIn, isGuestMode, pathname, router, setUser, user]);
 
   if (isChecking) {
     return (
