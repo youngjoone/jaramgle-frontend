@@ -8,12 +8,27 @@ import { authApi } from "@/lib/api";
 export default function AuthCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setUser } = useAuthStore();
+  const { setUser, exitGuestMode } = useAuthStore();
 
   useEffect(() => {
-    // 백엔드가 access/refresh 쿠키를 내려주므로 추가 처리 없이 홈으로 이동
-    router.replace("/library");
-  }, [router, searchParams, setUser]);
+    exitGuestMode(); // 소셜 로그인 진입 시 게스트 모드 해제
+
+    const finalizeLogin = async () => {
+      try {
+        const profile = await authApi.bootstrapSession();
+        if (profile) {
+          setUser(profile);
+          router.replace("/library");
+          return;
+        }
+      } catch (err) {
+        console.error("Failed to bootstrap session after OAuth callback", err);
+      }
+      router.replace("/login");
+    };
+
+    finalizeLogin();
+  }, [router, searchParams, setUser, exitGuestMode]);
 
   return null;
 }

@@ -12,7 +12,7 @@ interface AuthGuardProps {
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isLoggedIn, isGuestMode, setUser, user } = useAuthStore();
+  const { isLoggedIn, isGuestMode, setUser, user, exitGuestMode } = useAuthStore();
   const [isChecking, setIsChecking] = useState(true);
   const bootstrapped = useRef(false);
 
@@ -22,27 +22,18 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
     const isGuestAllowedPage = pathname === '/library';
 
-    // Guest mode 처리
-    if (isGuestMode) {
-      if (isGuestAllowedPage) {
-        setIsChecking(false);
-      } else {
-        router.replace('/login');
-      }
-      return;
-    }
-
     // 이미 로그인/프로필이 있으면 통과
     if (user) {
       setIsChecking(false);
       return;
     }
 
-    // 세션 부팅 시도
+    // 세션 부팅 시도 (게스트 모드라도 토큰이 있으면 로그인 전환)
     (async () => {
       try {
         const profile = await authApi.bootstrapSession();
         if (profile) {
+          exitGuestMode();
           setUser(profile);
           setIsChecking(false);
           return;
@@ -50,9 +41,15 @@ export function AuthGuard({ children }: AuthGuardProps) {
       } catch (err) {
         console.error('Session bootstrap failed', err);
       }
-      router.replace('/login');
+
+      // 부팅 실패 시 게스트 허용 페이지는 통과, 아니면 로그인으로 이동
+      if (isGuestMode && isGuestAllowedPage) {
+        setIsChecking(false);
+      } else {
+        router.replace('/login');
+      }
     })();
-  }, [isLoggedIn, isGuestMode, pathname, router, setUser, user]);
+  }, [isLoggedIn, isGuestMode, pathname, router, setUser, user, exitGuestMode]);
 
   if (isChecking) {
     return (

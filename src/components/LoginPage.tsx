@@ -36,9 +36,10 @@ interface Sparkle {
 
 export function LoginPage() {
   const router = useRouter();
-  const { enterGuestMode } = useAuthStore();
+  const { enterGuestMode, exitGuestMode } = useAuthStore();
 
   const redirectToOAuth = (provider: "google" | "kakao" | "naver") => {
+    exitGuestMode();
     const url = getOAuthUrl(provider);
     window.location.href = url;
   };
