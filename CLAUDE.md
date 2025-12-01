@@ -26,25 +26,46 @@ pnpm db:studio    # Open Drizzle Studio
 
 - **Framework**: Next.js 16 with App Router (React 19)
 - **Database**: Drizzle ORM with Neon (serverless PostgreSQL)
-- **Auth**: better-auth
+- **Auth**: Cookie-based OAuth via backend (Google, Kakao, Naver)
 - **Styling**: Tailwind CSS v4 with tw-animate-css
-- **State**: Zustand
+- **State**: Zustand (persisted auth, in-memory storybooks)
 - **Data Fetching**: TanStack React Query
 - **Forms**: React Hook Form with Zod validation (@hookform/resolvers)
 - **Animations**: Framer Motion
-- **UI Utilities**: class-variance-authority, clsx, tailwind-merge, lucide-react
+- **UI Components**: Radix UI primitives with shadcn/ui patterns
 
-## Project Structure
+## Architecture
 
-```
-src/
-├── app/           # Next.js App Router pages and layouts
-├── lib/
-│   └── utils.ts   # Utility functions (cn for className merging)
-```
+### Route Groups
+- `(auth)/` - Public routes (login page)
+- `(main)/` - Protected routes wrapped with `AuthGuard` and `AppLayout`
+- `/auth/callback` - OAuth callback handler
+
+### Authentication Flow
+- Backend handles OAuth at `BACKEND_ORIGIN/oauth2/authorization/{provider}`
+- Frontend uses cookie-based sessions with automatic token refresh
+- `AuthGuard` component bootstraps session and redirects unauthenticated users
+- Guest mode allows limited access to `/library` page only
+
+### State Management (Zustand)
+- `useAuthStore` - Auth state with localStorage persistence
+- `useStorybooksStore` - Storybook data and viewer modal state
+- Import stores from `@/store` barrel export
+
+### API Layer (`src/lib/api.ts`)
+- `apiFetch()` - Wrapper with automatic 401 handling and token refresh
+- `authApi` - Auth-specific endpoints (login, logout, profile, session bootstrap)
+- `API_BASE` configured via `NEXT_PUBLIC_API_BASE` env var (default: `http://localhost:8080/api`)
+
+### Layout Structure
+- `AppLayout` wraps main content with responsive sidebar/bottom nav
+- `Sidebar` - Desktop navigation (left side)
+- `BottomNav` - Mobile navigation (bottom)
+- `StoryBookViewerPage` - Modal overlay controlled via Zustand store
 
 ## Code Conventions
 
 - Path alias: `@/*` maps to `./src/*`
 - Use `cn()` from `@/lib/utils` for conditional className merging
 - TypeScript strict mode is enabled
+- UI components in `src/components/ui/` follow shadcn/ui patterns with CVA for variants

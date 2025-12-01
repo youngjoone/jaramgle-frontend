@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from 'react';
-import { Wand2, Sparkles, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { Wand2, Sparkles, ChevronLeft, ChevronRight, User, Star, Plus, Lightbulb, PenLine, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,18 +20,36 @@ const examplePrompts = [
 
 const ageGroups = ["0-3세", "4-6세", "7-9세", "10-12세"];
 const genres = ["판타지", "모험", "교육", "자장가", "SF", "동화"];
-const styles = ["수채화", "디지털", "만화", "사실적", "미니멀", "빈티지"];
-const lengths = ["짧게 (8페이지)", "보통 (16페이지)", "길게 (24페이지)"];
+const lengths = ["10페이지", "15페이지", "20페이지"];
+const languages = ["한국어", "English"];
+const learningGoals = ["과학", "수학", "영어", "한글", "역사", "자연", "예술", "생활습관"];
 
-const stylePresets = [
-  { name: "수채화 꿈", color: "from-blue-400 to-purple-400" },
-  { name: "디지털 팝", color: "from-pink-400 to-orange-400" },
-  { name: "클래식 만화", color: "from-yellow-400 to-red-400" },
-  { name: "부드러운 파스텔", color: "from-purple-300 to-pink-300" },
-  { name: "대담하고 밝게", color: "from-green-400 to-blue-400" },
-  { name: "빈티지 동화책", color: "from-amber-400 to-brown-400" },
-  { name: "몽환적 구름", color: "from-cyan-300 to-blue-300" },
-  { name: "석양 빛", color: "from-orange-300 to-pink-400" }
+// 아트 스타일 프리셋 (통합)
+const artStylePresets = [
+  { name: "수채화 꿈", color: "from-blue-400 to-purple-400", style: "수채화" },
+  { name: "디지털 팝", color: "from-pink-400 to-orange-400", style: "디지털" },
+  { name: "클래식 만화", color: "from-yellow-400 to-red-400", style: "만화" },
+  { name: "부드러운 파스텔", color: "from-purple-300 to-pink-300", style: "파스텔" },
+  { name: "대담하고 밝게", color: "from-green-400 to-blue-400", style: "밝은" },
+  { name: "빈티지 동화책", color: "from-amber-400 to-brown-400", style: "빈티지" },
+  { name: "몽환적 구름", color: "from-cyan-300 to-blue-300", style: "몽환적" },
+  { name: "석양 빛", color: "from-orange-300 to-pink-400", style: "따뜻한" },
+  { name: "사실적 일러스트", color: "from-slate-400 to-gray-500", style: "사실적" },
+  { name: "미니멀 라인", color: "from-gray-300 to-slate-400", style: "미니멀" }
+];
+
+// 동화책 교훈 프리셋
+const moralPresets = [
+  "용기를 내면 무엇이든 할 수 있어요",
+  "친구와 함께하면 더 즐거워요",
+  "정직은 가장 소중한 가치예요",
+  "다름을 인정하고 존중해요",
+  "실패해도 다시 도전하는 게 중요해요",
+  "작은 친절이 큰 변화를 만들어요",
+  "가족의 사랑은 언제나 함께해요",
+  "꿈을 향해 노력하면 이루어져요",
+  "자연을 사랑하고 보호해요",
+  "나눔의 기쁨을 알아가요"
 ];
 
 const characterPresets = [
@@ -87,19 +105,76 @@ const characterPresets = [
   }
 ];
 
+// 내 캐릭터 (사용자가 만든 캐릭터) - 실제로는 API에서 가져올 데이터
+const myCharacters = [
+  {
+    name: "우리 아이",
+    category: "내 캐릭터",
+    imageUrl: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+  },
+  {
+    name: "우리 강아지",
+    category: "내 캐릭터",
+    imageUrl: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+  }
+];
+
 export function CreatePage() {
   const [prompt, setPrompt] = useState('');
   const [selectedAge, setSelectedAge] = useState('4-6세');
   const [selectedGenre, setSelectedGenre] = useState('판타지');
-  const [selectedStyle, setSelectedStyle] = useState('수채화');
-  const [selectedLength, setSelectedLength] = useState('보통 (16페이지)');
+  const [selectedLength, setSelectedLength] = useState('15페이지');
+  const [selectedLanguage, setSelectedLanguage] = useState('한국어');
+  const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null);
-  const [selectedStylePreset, setSelectedStylePreset] = useState<string | null>(null);
+  const [selectedMyCharacter, setSelectedMyCharacter] = useState<string | null>(null);
+  const [selectedArtStyle, setSelectedArtStyle] = useState<string | null>("수채화 꿈");
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  // 교훈 관련 상태
+  const [selectedMoral, setSelectedMoral] = useState<string | null>(null);
+  const [isCustomMoral, setIsCustomMoral] = useState(false);
+  const [customMoralText, setCustomMoralText] = useState('');
+
   const styleScrollRef = useRef<HTMLDivElement>(null);
   const characterScrollRef = useRef<HTMLDivElement>(null);
+  const myCharacterScrollRef = useRef<HTMLDivElement>(null);
+
+  const toggleGoal = (goal: string) => {
+    setSelectedGoals(prev =>
+      prev.includes(goal)
+        ? prev.filter(g => g !== goal)
+        : [...prev, goal]
+    );
+  };
+
+  const handleMoralSelect = (moral: string) => {
+    setSelectedMoral(moral);
+    setIsCustomMoral(false);
+    setCustomMoralText('');
+  };
+
+  const handleCustomMoralClick = () => {
+    setIsCustomMoral(true);
+    setSelectedMoral(null);
+  };
+
+  const handleNoMoralClick = () => {
+    setSelectedMoral(null);
+    setIsCustomMoral(false);
+    setCustomMoralText('');
+  };
+
+  const scrollMyCharacters = (direction: 'left' | 'right') => {
+    if (myCharacterScrollRef.current) {
+      const scrollAmount = 300;
+      myCharacterScrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const handleGenerate = () => {
     setIsGenerating(true);
@@ -153,40 +228,52 @@ export function CreatePage() {
           </p>
         </div>
 
-        {/* Prompt Input */}
-        <div className="mb-8">
-          <div className="relative">
-            <Textarea
-              placeholder="동화책 아이디어를 설명해주세요... (예: 마법의 정원을 발견하는 호기심 많은 작은 여우)"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="w-full min-h-[140px] bg-white border border-[#E0E0E0] text-[#1A1A1A] placeholder:text-[#757575] rounded-3xl px-6 py-4 text-lg focus-visible:ring-2 focus-visible:ring-[#1A1A1A] focus-visible:border-[#1A1A1A] transition-all"
-            />
-            <div className="absolute bottom-4 right-4">
-              <Sparkles className="w-5 h-5 text-[#757575]" />
-            </div>
-          </div>
-        </div>
-
-        {/* Example Prompts */}
-        <div className="mb-10">
-          <p className="text-sm text-[#757575] font-medium mb-3">예시를 참고해보세요:</p>
-          <div className="flex flex-wrap gap-2">
-            {examplePrompts.map((example, index) => (
-              <Badge
-                key={index}
-                variant="outline"
-                className="bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#1A1A1A] cursor-pointer transition-all px-4 py-2 rounded-full font-medium"
-                onClick={() => setPrompt(example)}
-              >
-                {example}
-              </Badge>
-            ))}
-          </div>
-        </div>
-
         {/* Parameters */}
         <div className="space-y-6 mb-10">
+          {/* Language Selection */}
+          <div>
+            <label className="text-sm text-[#1A1A1A] font-semibold mb-3 block">언어</label>
+            <div className="flex flex-wrap gap-2">
+              {languages.map((language) => (
+                <Button
+                  key={language}
+                  variant="outline"
+                  size="sm"
+                  className={`rounded-full px-6 transition-all duration-300 ${
+                    selectedLanguage === language
+                      ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
+                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
+                  }`}
+                  onClick={() => setSelectedLanguage(language)}
+                >
+                  {language}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Learning Goals */}
+          <div>
+            <label className="text-sm text-[#1A1A1A] font-semibold mb-3 block">학습 목표 (복수 선택 가능)</label>
+            <div className="flex flex-wrap gap-2">
+              {learningGoals.map((goal) => (
+                <Button
+                  key={goal}
+                  variant="outline"
+                  size="sm"
+                  className={`rounded-full px-6 transition-all duration-300 ${
+                    selectedGoals.includes(goal)
+                      ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
+                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
+                  }`}
+                  onClick={() => toggleGoal(goal)}
+                >
+                  {goal}
+                </Button>
+              ))}
+            </div>
+          </div>
+
           {/* Age Group */}
           <div>
             <label className="text-sm text-[#1A1A1A] font-semibold mb-3 block">연령대</label>
@@ -231,28 +318,6 @@ export function CreatePage() {
             </div>
           </div>
 
-          {/* Style */}
-          <div>
-            <label className="text-sm text-[#1A1A1A] font-semibold mb-3 block">아트 스타일</label>
-            <div className="flex flex-wrap gap-2">
-              {styles.map((style) => (
-                <Button
-                  key={style}
-                  variant="outline"
-                  size="sm"
-                  className={`rounded-full px-6 transition-all duration-300 ${
-                    selectedStyle === style
-                      ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
-                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
-                  }`}
-                  onClick={() => setSelectedStyle(style)}
-                >
-                  {style}
-                </Button>
-              ))}
-            </div>
-          </div>
-
           {/* Length */}
           <div>
             <label className="text-sm text-[#1A1A1A] font-semibold mb-3 block">동화 길이</label>
@@ -276,12 +341,122 @@ export function CreatePage() {
           </div>
         </div>
 
-        {/* Style Presets Slider */}
+        {/* Story Prompt Input */}
+        <div className="mb-6">
+          <label className="text-sm text-[#1A1A1A] font-semibold mb-3 block">동화책 스토리</label>
+          <div className="relative">
+            <Textarea
+              placeholder="동화책 아이디어를 설명해주세요... (예: 마법의 정원을 발견하는 호기심 많은 작은 여우)"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              className="w-full min-h-[140px] bg-white border border-[#E0E0E0] text-[#1A1A1A] placeholder:text-[#757575] rounded-3xl px-6 py-4 text-lg focus-visible:ring-2 focus-visible:ring-[#1A1A1A] focus-visible:border-[#1A1A1A] transition-all"
+            />
+            <div className="absolute bottom-4 right-4">
+              <Sparkles className="w-5 h-5 text-[#757575]" />
+            </div>
+          </div>
+        </div>
+
+        {/* Example Prompts */}
+        <div className="mb-10">
+          <p className="text-sm text-[#757575] font-medium mb-3">예시를 참고해보세요:</p>
+          <div className="flex flex-wrap gap-2">
+            {examplePrompts.map((example, index) => (
+              <Badge
+                key={index}
+                variant="outline"
+                className="bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#1A1A1A] cursor-pointer transition-all px-4 py-2 rounded-full font-medium"
+                onClick={() => setPrompt(example)}
+              >
+                {example}
+              </Badge>
+            ))}
+          </div>
+        </div>
+
+        {/* Moral/Lesson Section */}
+        <div className="mb-10">
+          <div className="flex items-center gap-2 mb-4">
+            <Lightbulb className="w-5 h-5 text-[#FFA726]" />
+            <h3 className="text-[#424242] font-semibold">동화책 교훈</h3>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              className={`rounded-full px-5 transition-all duration-300 ${
+                !selectedMoral && !isCustomMoral
+                  ? 'bg-[#FFA726]/10 text-[#F57C00] border-[#FFA726]/30'
+                  : 'bg-white border border-[#E0E0E0] text-[#757575] hover:bg-[#FFF3E0] hover:border-[#FFA726]/30'
+              }`}
+              onClick={handleNoMoralClick}
+            >
+              <X className="w-4 h-4 mr-1" />
+              선택 안함
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={`rounded-full px-5 transition-all duration-300 ${
+                isCustomMoral
+                  ? 'bg-[#FFA726]/10 text-[#F57C00] border-[#FFA726]/30'
+                  : 'bg-white border border-[#E0E0E0] text-[#757575] hover:bg-[#FFF3E0] hover:border-[#FFA726]/30'
+              }`}
+              onClick={handleCustomMoralClick}
+            >
+              <PenLine className="w-4 h-4 mr-1" />
+              직접 입력
+            </Button>
+          </div>
+
+          {/* Custom Input Field */}
+          <AnimatePresence>
+            {isCustomMoral && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-4"
+              >
+                <Textarea
+                  placeholder="동화책에 담고 싶은 교훈을 직접 입력해주세요..."
+                  value={customMoralText}
+                  onChange={(e) => setCustomMoralText(e.target.value)}
+                  className="w-full min-h-[80px] bg-[#FFF3E0]/30 border border-[#FFA726]/30 text-[#1A1A1A] placeholder:text-[#757575] rounded-2xl px-4 py-3 focus-visible:ring-2 focus-visible:ring-[#FFA726] focus-visible:border-[#FFA726] transition-all"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Moral Presets */}
+          {!isCustomMoral && (
+            <div className="flex flex-wrap gap-2">
+              {moralPresets.map((moral, index) => (
+                <Badge
+                  key={index}
+                  variant="outline"
+                  className={`cursor-pointer transition-all px-4 py-2 rounded-full font-medium ${
+                    selectedMoral === moral
+                      ? 'bg-[#FFA726]/10 text-[#F57C00] border-[#FFA726]/50'
+                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#FFF3E0] hover:border-[#FFA726]/30'
+                  }`}
+                  onClick={() => handleMoralSelect(moral)}
+                >
+                  {moral}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Art Style Presets */}
         <div className="mb-10">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[#424242] font-semibold flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-[#66BB6A]" />
-              스타일 프리셋
+              아트 스타일
             </h3>
             <div className="flex gap-2">
               <Button
@@ -304,25 +479,28 @@ export function CreatePage() {
           </div>
           <div
             ref={styleScrollRef}
-            className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth"
+            className="flex gap-4 pt-4 pb-6 px-3 overflow-x-auto scrollbar-hide scroll-smooth"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {stylePresets.map((preset, index) => (
+            {artStylePresets.map((preset, index) => (
               <motion.div
                 key={index}
                 whileHover={{ scale: 1.05, y: -4 }}
-                onClick={() => setSelectedStylePreset(preset.name)}
+                onClick={() => setSelectedArtStyle(preset.name)}
                 className={`flex-shrink-0 w-48 h-36 rounded-3xl bg-gradient-to-br cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${
-                  selectedStylePreset === preset.name
+                  selectedArtStyle === preset.name
                     ? 'ring-4 ring-[#66BB6A] ring-offset-2'
                     : 'border-2 border-[#E0E0E0]'
                 }`}
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${preset.color} opacity-90`} />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#424242]/40 to-transparent flex items-end p-4">
-                  <p className="text-white font-semibold drop-shadow-lg">{preset.name}</p>
+                  <div>
+                    <p className="text-white font-semibold drop-shadow-lg">{preset.name}</p>
+                    <p className="text-white/80 text-xs drop-shadow-lg">{preset.style}</p>
+                  </div>
                 </div>
-                {selectedStylePreset === preset.name && (
+                {selectedArtStyle === preset.name && (
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
@@ -364,14 +542,17 @@ export function CreatePage() {
           </div>
           <div
             ref={characterScrollRef}
-            className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth"
+            className="flex gap-4 pt-4 pb-6 px-3 overflow-x-auto scrollbar-hide scroll-smooth"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {characterPresets.map((character, index) => (
               <motion.div
                 key={index}
                 whileHover={{ scale: 1.05, y: -4 }}
-                onClick={() => setSelectedCharacter(character.name)}
+                onClick={() => {
+                  setSelectedCharacter(character.name);
+                  setSelectedMyCharacter(null);
+                }}
                 className={`flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${
                   selectedCharacter === character.name
                     ? 'ring-4 ring-[#66BB6A] ring-offset-2'
@@ -397,6 +578,88 @@ export function CreatePage() {
                     className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-lg"
                   >
                     <Sparkles className="w-5 h-5 text-[#66BB6A]" />
+                  </motion.div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* My Characters Section */}
+        <div className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[#424242] font-semibold flex items-center gap-2">
+              <Star className="w-5 h-5 text-[#FFA726]" />
+              내 캐릭터
+            </h3>
+            <div className="flex gap-2">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => scrollMyCharacters('left')}
+                className="w-10 h-10 rounded-full bg-white hover:bg-[#FFF3E0] border border-[#E0E0E0] shadow-md transition-all"
+              >
+                <ChevronLeft className="w-5 h-5 text-[#FFA726]" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => scrollMyCharacters('right')}
+                className="w-10 h-10 rounded-full bg-white hover:bg-[#FFF3E0] border border-[#E0E0E0] shadow-md transition-all"
+              >
+                <ChevronRight className="w-5 h-5 text-[#FFA726]" />
+              </Button>
+            </div>
+          </div>
+          <div
+            ref={myCharacterScrollRef}
+            className="flex gap-4 pt-4 pb-6 px-3 overflow-x-auto scrollbar-hide scroll-smooth"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {/* Add New Character Card */}
+            <motion.div
+              whileHover={{ scale: 1.05, y: -4 }}
+              className="flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden border-2 border-dashed border-[#FFA726]/50 bg-[#FFF3E0]/30 flex flex-col items-center justify-center gap-3"
+            >
+              <div className="w-14 h-14 rounded-full bg-[#FFA726]/20 flex items-center justify-center">
+                <Plus className="w-7 h-7 text-[#FFA726]" />
+              </div>
+              <p className="text-[#FFA726] font-semibold text-sm">캐릭터 추가</p>
+            </motion.div>
+
+            {myCharacters.map((character, index) => (
+              <motion.div
+                key={index}
+                whileHover={{ scale: 1.05, y: -4 }}
+                onClick={() => {
+                  setSelectedMyCharacter(character.name);
+                  setSelectedCharacter(null);
+                }}
+                className={`flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${
+                  selectedMyCharacter === character.name
+                    ? 'ring-4 ring-[#FFA726] ring-offset-2'
+                    : 'border-2 border-[#E0E0E0]'
+                }`}
+              >
+                <ImageWithFallback
+                  src={character.imageUrl}
+                  alt={character.name}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#424242]/70 via-[#424242]/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-4 text-center">
+                  <p className="text-white font-semibold drop-shadow-lg mb-1">{character.name}</p>
+                  <Badge className="bg-[#FFA726]/80 text-white border-0 text-xs">
+                    {character.category}
+                  </Badge>
+                </div>
+                {selectedMyCharacter === character.name && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-lg"
+                  >
+                    <Star className="w-5 h-5 text-[#FFA726]" />
                   </motion.div>
                 )}
               </motion.div>
