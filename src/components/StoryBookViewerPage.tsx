@@ -4,10 +4,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, X, Languages, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
+import { apiFetch } from '@/lib/api';
 
 interface StoryPage {
-  pageNumber: number;
-  imageUrl: string;
+  pageNo: number;
+  imageUrl?: string | null;
   text: string;
 }
 
@@ -20,45 +21,14 @@ interface StoryBookViewerPageProps {
   onClose: () => void;
 }
 
-// Mock storybook pages data
-const mockPages: StoryPage[] = [
-  {
-    pageNumber: 1,
-    imageUrl: "https://images.unsplash.com/photo-1600804010026-8387cc05e1c4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    text: "Once upon a time, in a lush green forest, there lived a curious little fox named Ruby. She loved exploring every corner of her woodland home."
-  },
-  {
-    pageNumber: 2,
-    imageUrl: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    text: "One sunny morning, Ruby discovered a mysterious glowing path she had never seen before. Her heart raced with excitement and wonder."
-  },
-  {
-    pageNumber: 3,
-    imageUrl: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    text: "Following the path, Ruby met a wise old owl named Oliver. 'This path leads to the Secret Garden,' he hooted, 'but only the brave can find it.'"
-  },
-  {
-    pageNumber: 4,
-    imageUrl: "https://images.unsplash.com/photo-1574244931790-ee19df716899?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    text: "With courage in her heart, Ruby ventured deeper into the forest. The trees seemed to whisper encouragement as she walked."
-  },
-  {
-    pageNumber: 5,
-    imageUrl: "https://images.unsplash.com/photo-1511497584788-876760111969?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    text: "At last, Ruby found the Secret Garden! It was filled with flowers that sparkled like stars and butterflies that sang sweet melodies."
-  },
-  {
-    pageNumber: 6,
-    imageUrl: "https://images.unsplash.com/photo-1426604966848-d7adac402bff?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    text: "Ruby realized that the greatest adventures come to those who are curious and brave. She returned home with stories to share with all her friends. The End."
-  }
-];
-
 export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageProps) {
   const [currentPage, setCurrentPage] = useState(0);
   const [isTranslated, setIsTranslated] = useState(false);
   const [isSoundOn, setIsSoundOn] = useState(false);
   const [direction, setDirection] = useState(0);
+  const [pages, setPages] = useState<StoryPage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Auto-focus on mount for keyboard accessibility
@@ -66,12 +36,34 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     containerRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const detail = await apiFetch<{ pages?: StoryPage[] }>(`/stories/${storybook.id}`);
+        if (!mounted) return;
+        const sorted = (detail.pages || []).sort((a, b) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
+        setPages(sorted);
+        setCurrentPage(0);
+      } catch (err) {
+        console.error("스토리 상세 불러오기 실패", err);
+        if (mounted) setError("스토리 내용을 불러오지 못했습니다.");
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, [storybook.id]);
+
   const handleNextPage = useCallback(() => {
-    if (currentPage < mockPages.length - 1) {
+    if (currentPage < pages.length - 1) {
       setDirection(1);
       setCurrentPage(prev => prev + 1);
     }
-  }, [currentPage]);
+  }, [currentPage, pages.length]);
 
   const handlePrevPage = useCallback(() => {
     if (currentPage > 0) {
@@ -115,7 +107,25 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     })
   };
 
-  const currentPageData = mockPages[currentPage];
+  const currentPageData = pages[currentPage];
+  const placeholderImage = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80";
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-gradient-to-br from-[#F1F8E9] via-[#E8F5E9] to-[#C8E6C9] z-50 flex items-center justify-center">
+        <div className="text-[#4A3F47]">스토리를 불러오는 중...</div>
+      </div>
+    );
+  }
+
+  if (error || pages.length === 0) {
+    return (
+      <div className="fixed inset-0 bg-gradient-to-br from-[#F1F8E9] via-[#E8F5E9] to-[#C8E6C9] z-50 flex flex-col items-center justify-center gap-4 text-[#4A3F47]">
+        <div>{error || "스토리 내용을 찾을 수 없습니다."}</div>
+        <Button onClick={onClose}>닫기</Button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -195,8 +205,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
                 {/* Image */}
                 <div className="w-full lg:w-1/2 aspect-square overflow-hidden rounded-3xl shadow-[0_12px_48px_rgba(176,123,172,0.2)] border border-white/40">
                   <img
-                    src={currentPageData.imageUrl}
-                    alt={`Page ${currentPageData.pageNumber}`}
+                    src={currentPageData.imageUrl || placeholderImage}
+                    alt={`Page ${currentPageData.pageNo}`}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -209,7 +219,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
                     }
                   </p>
                   <span className="absolute bottom-2 right-6 lg:bottom-3 lg:right-8 text-[#7A6F76]/40 text-sm">
-                    {currentPageData.pageNumber}
+                    {currentPageData.pageNo}
                   </span>
                 </div>
               </motion.div>
@@ -233,7 +243,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
 
         {/* Page Counter - Center */}
         <p className="text-[#7A6F76]/60 text-sm md:text-base">
-          Page {currentPage + 1} of {mockPages.length}
+          Page {currentPage + 1} of {pages.length}
         </p>
 
         {/* Next Button */}
@@ -241,7 +251,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
           variant="ghost"
           size="icon"
           onClick={handleNextPage}
-          disabled={currentPage >= mockPages.length - 1}
+          disabled={currentPage >= pages.length - 1}
           className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/60 backdrop-blur-md hover:bg-white/80 text-[#4A3F47] disabled:opacity-30 disabled:cursor-not-allowed shadow-[0_4px_16px_rgba(176,123,172,0.15)] border border-white/40"
         >
           <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
