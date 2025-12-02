@@ -49,11 +49,40 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       setIsLoading(true);
       setError(null);
       try {
+        // 우선 스토리북 페이지(이미지 포함)를 시도
+        try {
+          const sbPages = await apiFetch<Array<{
+            pageNumber: number;
+            text: string;
+            imageUrl?: string | null;
+            image_url?: string | null;
+            audioUrl?: string | null;
+          }>>(`/stories/${storybook.id}/storybook/pages`);
+          if (mounted && sbPages && sbPages.length > 0) {
+            const sortedSb = sbPages
+              .map((p) => ({
+                pageNo: p.pageNumber ?? 0,
+                text: p.text,
+                imageUrl: normalizeImage(p.imageUrl || (p as any).image_url || null),
+              }))
+              .sort((a, b) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
+            setPages(sortedSb);
+            setCurrentPage(0);
+            setIsLoading(false);
+            return;
+          }
+        } catch (e) {
+          // 스토리북 없으면 원본 스토리 페이지로 fallback
+          console.warn("스토리북 페이지 조회 실패, 원본 페이지로 대체", e);
+        }
+
+        // fallback: 스토리 상세(텍스트 위주, 이미지 없을 수 있음)
         const detail = await apiFetch<{ pages?: StoryPage[] }>(`/stories/${storybook.id}`);
         if (!mounted) return;
         const sorted = (detail.pages || [])
           .map((p) => ({
             ...p,
+            pageNo: (p as any).pageNo ?? (p as any).page ?? 0,
             imageUrl: normalizeImage(p.imageUrl || (p as any).image_url || null),
           }))
           .sort((a, b) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
@@ -62,7 +91,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       } catch (err) {
         console.error("스토리 상세 불러오기 실패", err);
         if (mounted) setError("스토리 내용을 불러오지 못했습니다.");
-      } finally {
+      }
+      finally {
         if (mounted) setIsLoading(false);
       }
     };
