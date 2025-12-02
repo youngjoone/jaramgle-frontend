@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, X, Languages, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, BACKEND_ORIGIN } from '@/lib/api';
 
 interface StoryPage {
   pageNo: number;
@@ -31,6 +31,12 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const placeholderImage = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80";
+  const normalizeImage = (url?: string | null) => {
+    if (!url) return placeholderImage;
+    if (/^https?:\/\//i.test(url)) return url;
+    return `${BACKEND_ORIGIN}${url.startsWith("/") ? url : `/${url}`}`;
+  };
 
   // Auto-focus on mount for keyboard accessibility
   useEffect(() => {
@@ -48,7 +54,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
         const sorted = (detail.pages || [])
           .map((p) => ({
             ...p,
-            imageUrl: p.imageUrl || (p as any).image_url || null,
+            imageUrl: normalizeImage(p.imageUrl || (p as any).image_url || null),
           }))
           .sort((a, b) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
         setPages(sorted);
@@ -114,7 +120,6 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   };
 
   const currentPageData = pages[currentPage];
-  const placeholderImage = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80";
 
   if (isLoading) {
     return (

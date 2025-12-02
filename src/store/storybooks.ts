@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from 'zustand';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, BACKEND_ORIGIN } from '@/lib/api';
 
 export interface Storybook {
   id: number;
@@ -69,12 +69,20 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
   getOwnedStorybooks: () => get().storybooks.filter(book => book.isOwned),
   setStorybooks: (items) => set({ storybooks: items }),
   loadMyStories: async () => {
+    const normalizeImage = (url?: string | null) => {
+      if (!url) return placeholderImage;
+      if (/^https?:\/\//i.test(url)) return url;
+      return `${BACKEND_ORIGIN}${url.startsWith("/") ? url : `/${url}`}`;
+    };
+
     const stories = await apiFetch<Array<{
       id: number;
       title: string;
       coverImageUrl?: string | null;
+      cover_image_url?: string | null;
       topics?: string[];
       shareSlug?: string | null;
+      share_slug?: string | null;
       createdAt?: string;
     }>>("/stories");
 
@@ -82,12 +90,12 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       id: s.id,
       title: s.title || "제목 없음",
       author: "나",
-      imageUrl: s.coverImageUrl || placeholderImage,
+      imageUrl: normalizeImage(s.coverImageUrl || (s as any).cover_image_url),
       categories: s.topics || [],
       likes: 0,
       isBookmarked: false,
-      isShared: !!s.shareSlug,
-      shareSlug: s.shareSlug,
+      isShared: !!(s.shareSlug || (s as any).share_slug),
+      shareSlug: s.shareSlug || (s as any).share_slug,
       isOwned: true,
     }));
     set({ storybooks: mapped });
