@@ -126,6 +126,7 @@ type CharacterDto = {
   catchphrase?: string | null;
   promptKeywords?: string | null;
   imageUrl?: string | null;
+  image_url?: string | null;
   visualDescription?: string | null;
   descriptionPrompt?: string | null;
   modelingStatus?: string | null;
@@ -170,7 +171,7 @@ export function CreatePage() {
       id: c.id,
       name: c.name,
       category: c.scope || fallbackCategory,
-      imageUrl: normalizeImageUrl(c.imageUrl),
+      imageUrl: normalizeImageUrl(c.imageUrl || c.image_url),
     });
 
     const loadCharacters = async () => {
