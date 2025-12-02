@@ -30,6 +30,7 @@ interface StorybooksState {
   getOwnedStorybooks: () => Storybook[];
   setStorybooks: (items: Storybook[]) => void;
   loadMyStories: () => Promise<void>;
+  loadSharedStories: () => Promise<void>;
 }
 
 export const useStorybooksStore = create<StorybooksState>((set, get) => ({
@@ -47,12 +48,29 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
   })),
   toggleShare: async (id) => {
     try {
-      const resp = await apiFetch<{ slug: string }>(`/stories/${id}/share`, { method: "POST" });
-      set((state) => ({
-        storybooks: state.storybooks.map(book =>
-          book.id === id ? { ...book, isShared: true, shareSlug: resp.slug } : book
-        )
-      }));
+      if (!id || id <= 0) return; // 공유 피드 전용 카드(id 없음)는 무시
+      const currentBook = get().storybooks.find(book => book.id === id);
+      if (!currentBook) return;
+
+      if (currentBook.isShared) {
+        // Unshare
+        await apiFetch(`/stories/${id}/share`, { method: "DELETE" });
+        set((state) => ({
+          storybooks: state.storybooks.map(book =>
+            book.id === id ? { ...book, isShared: false, shareSlug: null } : book
+          )
+        }));
+      } else {
+        // Share
+        const resp = await apiFetch<{ slug: string }>(`/stories/${id}/share`, { method: "POST" });
+        set((state) => ({
+          storybooks: state.storybooks.map(book =>
+            book.id === id ? { ...book, isShared: true, shareSlug: resp.slug } : book
+          )
+        }));
+      }
+      // 서버 상태 동기화
+      await get().loadMyStories();
     } catch (err) {
       console.error("공유 설정 실패", err);
       throw err;
@@ -97,6 +115,37 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       isShared: !!(s.shareSlug || (s as any).share_slug),
       shareSlug: s.shareSlug || (s as any).share_slug,
       isOwned: true,
+    }));
+    set({ storybooks: mapped });
+  },
+  loadSharedStories: async () => {
+    const normalizeImage = (url?: string | null) => {
+      if (!url) return placeholderImage;
+      if (/^https?:\/\//i.test(url)) return url;
+      return `${BACKEND_ORIGIN}${url.startsWith("/") ? url : `/${url}`}`;
+    };
+
+    const sharedStories = await apiFetch<Array<{
+      share_slug: string;
+      title: string;
+      shared_at: string;
+      preview: string;
+      like_count: number;
+      comment_count: number;
+      cover_image_url?: string | null;
+    }>>("/public/shared-stories");
+
+    const mapped: Storybook[] = sharedStories.map((s) => ({
+      id: 0, // We don't have story ID in SharedStorySummaryDto, use shareSlug as identifier
+      title: s.title || "제목 없음",
+      author: "공유된 동화",
+      imageUrl: normalizeImage(s.cover_image_url),
+      categories: [],
+      likes: Number(s.like_count) || 0,
+      isBookmarked: false,
+      isShared: true,
+      shareSlug: s.share_slug,
+      isOwned: false,
     }));
     set({ storybooks: mapped });
   },

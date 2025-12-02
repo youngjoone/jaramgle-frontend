@@ -1,16 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, X, Languages, Volume2, VolumeX } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Play, Pause, RotateCcw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, BACKEND_ORIGIN } from '@/lib/api';
 
 interface StoryPage {
+  id: number; // pageId
   pageNo: number;
   imageUrl?: string | null;
   image_url?: string | null;
   text: string;
+  audioUrl?: string | null;
 }
 
 interface StoryBookViewerPageProps {
@@ -18,22 +20,34 @@ interface StoryBookViewerPageProps {
     id: number;
     title: string;
     author: string;
+    shareSlug?: string | null;
   };
   onClose: () => void;
 }
 
 export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageProps) {
   const [currentPage, setCurrentPage] = useState(0);
-  const [isTranslated, setIsTranslated] = useState(false);
-  const [isSoundOn, setIsSoundOn] = useState(false);
   const [direction, setDirection] = useState(0);
   const [pages, setPages] = useState<StoryPage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Audio states
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const placeholderImage = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80";
+
   const normalizeImage = (url?: string | null) => {
     if (!url) return placeholderImage;
+    if (/^https?:\/\//i.test(url)) return url;
+    return `${BACKEND_ORIGIN}${url.startsWith("/") ? url : `/${url}`}`;
+  };
+
+  const normalizeAudio = (url?: string | null) => {
+    if (!url) return null;
     if (/^https?:\/\//i.test(url)) return url;
     return `${BACKEND_ORIGIN}${url.startsWith("/") ? url : `/${url}`}`;
   };
@@ -49,21 +63,76 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       setIsLoading(true);
       setError(null);
       try {
+        // 공유 피드(shareSlug만 있는 카드)인 경우, 공개 상세 API 사용
+        if (storybook.id <= 0 && storybook.shareSlug) {
+          const detail = await apiFetch<{
+            story: {
+              id: number;
+              title: string;
+              pages?: any[];
+              storybookPages?: any[];
+            };
+            storybookPages?: any[];
+          }>(`/public/shared-stories/${storybook.shareSlug}`);
+          if (!mounted) return;
+          let sbPages = (detail.storybookPages && detail.storybookPages.length > 0)
+            ? detail.storybookPages
+            : (detail.story.storybookPages || []);
+          const basePages = detail.story.pages || [];
+
+          // 이미지가 없으면 백엔드 스토리북 페이지도 시도(로그인 상태일 때만 성공)
+          if ((!sbPages || sbPages.length === 0) && detail.story.id > 0) {
+            try {
+              const more = await apiFetch<Array<{
+                id: number;
+                pageNumber: number;
+                text: string;
+                imageUrl?: string | null;
+                image_url?: string | null;
+                audioUrl?: string | null;
+              }>>(`/stories/${detail.story.id}/storybook/pages`);
+              if (more && more.length > 0) {
+                sbPages = more;
+              }
+            } catch (e) {
+              console.warn("공유 스토리북 이미지 추가 조회 실패", e);
+            }
+          }
+
+          const chosen = (sbPages && sbPages.length > 0 ? sbPages : basePages);
+          const sorted = chosen
+            .map((p: any) => ({
+              id: p.id || 0,
+              pageNo: p.pageNumber ?? p.pageNo ?? p.page ?? 0,
+              text: p.text,
+              imageUrl: normalizeImage(p.imageUrl || p.image_url || null),
+              audioUrl: normalizeAudio(p.audioUrl),
+            }))
+            .sort((a: any, b: any) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
+          setPages(sorted);
+          setCurrentPage(0);
+          return;
+        }
+
         // 우선 스토리북 페이지(이미지 포함)를 시도
         try {
           const sbPages = await apiFetch<Array<{
+            id: number;
             pageNumber: number;
             text: string;
             imageUrl?: string | null;
             image_url?: string | null;
             audioUrl?: string | null;
           }>>(`/stories/${storybook.id}/storybook/pages`);
+
           if (mounted && sbPages && sbPages.length > 0) {
             const sortedSb = sbPages
               .map((p) => ({
+                id: p.id,
                 pageNo: p.pageNumber ?? 0,
                 text: p.text,
                 imageUrl: normalizeImage(p.imageUrl || (p as any).image_url || null),
+                audioUrl: normalizeAudio(p.audioUrl),
               }))
               .sort((a, b) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
             setPages(sortedSb);
@@ -77,15 +146,18 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
         }
 
         // fallback: 스토리 상세(텍스트 위주, 이미지 없을 수 있음)
-        const detail = await apiFetch<{ pages?: StoryPage[] }>(`/stories/${storybook.id}`);
+        // Note: Fallback pages might not have IDs compatible with audio generation if they are not StorybookPages
+        const detail = await apiFetch<{ pages?: any[] }>(`/stories/${storybook.id}`);
         if (!mounted) return;
         const sorted = (detail.pages || [])
-          .map((p) => ({
-            ...p,
-            pageNo: (p as any).pageNo ?? (p as any).page ?? 0,
-            imageUrl: normalizeImage(p.imageUrl || (p as any).image_url || null),
+          .map((p: any) => ({
+            id: p.id || 0, // Fallback ID, might fail audio gen if 0
+            pageNo: p.pageNo ?? p.page ?? 0,
+            text: p.text,
+            imageUrl: normalizeImage(p.imageUrl || p.image_url || null),
+            audioUrl: null,
           }))
-          .sort((a, b) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
+          .sort((a: any, b: any) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
         setPages(sorted);
         setCurrentPage(0);
       } catch (err) {
@@ -99,6 +171,15 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     load();
     return () => { mounted = false; };
   }, [storybook.id]);
+
+  // Stop audio when page changes or component unmounts
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
+  }, [currentPage]);
 
   const handleNextPage = useCallback(() => {
     if (currentPage < pages.length - 1) {
@@ -126,11 +207,6 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNextPage, handlePrevPage, onClose]);
 
-  const toggleSound = () => {
-    setIsSoundOn(!isSoundOn);
-    // Here you would implement actual sound playback
-  };
-
   const pageVariants = {
     enter: (direction: number) => ({
       rotateY: direction > 0 ? 90 : -90,
@@ -150,6 +226,123 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   };
 
   const currentPageData = pages[currentPage];
+
+  // Audio Handlers
+  const handlePlayAudio = async () => {
+    if (!currentPageData) return;
+
+    // If audio already exists, play it
+    if (currentPageData.audioUrl) {
+      console.log('🎵 Playing existing audio:', currentPageData.audioUrl);
+
+      if (audioRef.current) {
+        // If different source, update it
+        if (!audioRef.current.src.endsWith(currentPageData.audioUrl)) {
+          console.log('🔄 Updating audio source');
+          audioRef.current.src = currentPageData.audioUrl;
+        }
+        try {
+          console.log('▶️ Attempting to play audio...');
+          await audioRef.current.play();
+          setIsPlaying(true);
+          console.log('✅ Audio playing successfully');
+        } catch (err) {
+          console.error("❌ Audio playback failed:", err);
+          alert(`재생 실패: ${err}`);
+        }
+      } else {
+        // Create audio element
+        console.log('🆕 Creating new Audio element');
+        const audio = new Audio(currentPageData.audioUrl);
+        audio.onerror = (e) => {
+          console.error('❌ Audio loading error:', e);
+          alert('오디오 파일을 불러올 수 없습니다.');
+        };
+        audio.onended = () => setIsPlaying(false);
+        audio.onpause = () => setIsPlaying(false);
+        audio.onplay = () => setIsPlaying(true);
+        audioRef.current = audio;
+        try {
+          console.log('▶️ Attempting to play new audio...');
+          await audio.play();
+          console.log('✅ Audio playing successfully');
+        } catch (err) {
+          console.error("❌ Audio playback failed:", err);
+          alert(`재생 실패: ${err}`);
+        }
+      }
+      return;
+    }
+
+    // Generate audio
+    console.log('🎙️ Generating new audio for page:', currentPageData.id);
+    setIsGeneratingAudio(true);
+    try {
+      const res = await apiFetch<{ audioUrl: string }>(
+        `/stories/${storybook.id}/storybook/pages/${currentPageData.id}/audio`,
+        {
+          method: 'POST',
+          body: {
+            text: currentPageData.text,
+            // Default options
+            speakerSlug: 'ko-KR-Standard-A',
+            language: 'ko-KR'
+          }
+        }
+      );
+
+      console.log('📦 Audio generation response:', res);
+
+      // Handle both camelCase and snake_case from backend
+      const audioUrlFromResponse = res.audioUrl || (res as any).audio_url;
+
+      if (res && audioUrlFromResponse) {
+        const newAudioUrl = normalizeAudio(audioUrlFromResponse);
+        console.log('🔗 Normalized audio URL:', newAudioUrl);
+
+        // Update pages state with new audio URL
+        setPages(prev => prev.map((p, idx) =>
+          idx === currentPage ? { ...p, audioUrl: newAudioUrl } : p
+        ));
+
+        // Play immediately
+        console.log('🆕 Creating Audio element for generated audio');
+        const audio = new Audio(newAudioUrl!);
+        audio.onerror = (e) => {
+          console.error('❌ Audio loading error:', e);
+          alert('생성된 오디오 파일을 불러올 수 없습니다.');
+        };
+        audio.onended = () => setIsPlaying(false);
+        audio.onpause = () => setIsPlaying(false);
+        audio.onplay = () => setIsPlaying(true);
+        audioRef.current = audio;
+
+        console.log('▶️ Attempting to play generated audio...');
+        await audio.play();
+        console.log('✅ Generated audio playing successfully');
+      }
+    } catch (err) {
+      console.error("❌ Audio generation failed:", err);
+      alert("음성 생성에 실패했습니다.");
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  };
+
+  const handlePauseAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const handleReplayAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -194,32 +387,57 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
           </div>
         </div>
 
-        {/* Control Buttons */}
-        <div className="flex items-center gap-2 md:gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsTranslated(!isTranslated)}
-            className={`rounded-full transition-all w-8 h-8 md:w-10 md:h-10 border backdrop-blur-md ${
-              isTranslated
-                ? 'bg-[#B07BAC] text-white border-white/20 hover:bg-[#9D8FA8] shadow-[0_4px_16px_rgba(176,123,172,0.3)]'
-                : 'text-[#7A6F76] bg-white/40 border-white/40 hover:bg-white/60 hover:text-[#B07BAC]'
-            }`}
-          >
-            <Languages className="w-4 h-4 md:w-5 md:h-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSound}
-            className={`rounded-full transition-all w-8 h-8 md:w-10 md:h-10 border backdrop-blur-md ${
-              isSoundOn
-                ? 'bg-[#C4D4C0] text-white border-white/20 hover:bg-[#B0C5AC] shadow-[0_4px_16px_rgba(196,212,192,0.3)]'
-                : 'text-[#7A6F76] bg-white/40 border-white/40 hover:bg-white/60 hover:text-[#C4D4C0]'
-            }`}
-          >
-            {isSoundOn ? <Volume2 className="w-4 h-4 md:w-5 md:h-5" /> : <VolumeX className="w-4 h-4 md:w-5 md:h-5" />}
-          </Button>
+        {/* Audio Controls */}
+        <div className="flex items-center gap-2">
+          {isGeneratingAudio ? (
+            <Button
+              variant="ghost"
+              disabled
+              className="rounded-full bg-white/40 border border-white/40 text-[#7A6F76] gap-2 px-4"
+            >
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm">생성 중...</span>
+            </Button>
+          ) : currentPageData.audioUrl ? (
+            <div className="flex items-center gap-1 bg-white/40 backdrop-blur-md rounded-full border border-white/40 p-1">
+              {isPlaying ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handlePauseAudio}
+                  className="rounded-full w-8 h-8 hover:bg-white/60 text-[#66BB6A]"
+                >
+                  <Pause className="w-4 h-4 fill-current" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handlePlayAudio}
+                  className="rounded-full w-8 h-8 hover:bg-white/60 text-[#66BB6A]"
+                >
+                  <Play className="w-4 h-4 fill-current ml-0.5" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleReplayAudio}
+                className="rounded-full w-8 h-8 hover:bg-white/60 text-[#7A6F76]"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              onClick={handlePlayAudio}
+              className="rounded-full bg-white/40 hover:bg-white/60 border border-white/40 text-[#4A3F47] gap-2 px-4 shadow-sm"
+            >
+              <Play className="w-4 h-4" />
+              <span className="text-sm font-medium">음성 재생</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -254,10 +472,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
                 {/* Text */}
                 <div className="w-full lg:w-1/2 aspect-square relative flex items-center justify-center px-6 lg:px-8 bg-white/50 backdrop-blur-xl border border-white/40 rounded-3xl shadow-[0_12px_48px_rgba(176,123,172,0.15),inset_0_1px_0_rgba(255,255,255,0.6)]">
                   <p className="text-[#1a1a1a] text-xl lg:text-2xl leading-relaxed text-center">
-                    {isTranslated
-                      ? `[Translated] ${currentPageData.text}`
-                      : currentPageData.text
-                    }
+                    {currentPageData.text}
                   </p>
                   <span className="absolute bottom-2 right-6 lg:bottom-3 lg:right-8 text-[#7A6F76]/40 text-sm">
                     {currentPageData.pageNo}

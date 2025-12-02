@@ -18,9 +18,11 @@ interface ExplorePageProps {
   onToggleBookmark: (id: number) => void;
   onToggleLike: (id: number) => void;
   onViewStorybook: (storybook: Storybook) => void;
+  isLoading?: boolean;
+  error?: string | null;
 }
 
-export function ExplorePage({ storybooks, onToggleBookmark, onToggleLike, onViewStorybook }: ExplorePageProps) {
+export function ExplorePage({ storybooks, onToggleBookmark, onToggleLike, onViewStorybook, isLoading = false, error = null }: ExplorePageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -110,9 +112,8 @@ export function ExplorePage({ storybooks, onToggleBookmark, onToggleLike, onView
   return (
     <>
       {/* Top Bar - Responsive */}
-      <div className={`fixed top-0 left-0 md:left-20 right-0 z-40 px-4 md:px-6 h-16 flex items-center bg-white/95 backdrop-blur-md transition-all duration-[var(--duration-normal)] ${
-        isScrolled ? 'border-b border-[var(--border)] shadow-sm' : ''
-      }`}>
+      <div className={`fixed top-0 left-0 md:left-20 right-0 z-40 px-4 md:px-6 h-16 flex items-center bg-white/95 backdrop-blur-md transition-all duration-[var(--duration-normal)] ${isScrolled ? 'border-b border-[var(--border)] shadow-sm' : ''
+        }`}>
         <div className="flex items-center justify-between w-full">
           <h1 className="text-[var(--text-primary)] font-bold">도서관</h1>
 
@@ -331,7 +332,15 @@ export function ExplorePage({ storybooks, onToggleBookmark, onToggleLike, onView
 
       {/* Grid Layout - pt-24 for spacing below h-16 topbar */}
       <div className="pt-24 px-4 md:px-6 pb-8 bg-[var(--background)] min-h-screen">
-        {filteredStorybooks.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center h-[calc(100vh-200px)] text-sm text-[#757575]">
+            공유된 동화책을 불러오는 중...
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-[calc(100vh-200px)] text-sm text-red-500">
+            {error}
+          </div>
+        ) : filteredStorybooks.length === 0 ? (
           <div className="flex items-center justify-center h-[calc(100vh-200px)]">
             <div className="text-center">
               <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-[#F1F8E9] flex items-center justify-center">
@@ -352,7 +361,7 @@ export function ExplorePage({ storybooks, onToggleBookmark, onToggleLike, onView
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6">
             {filteredStorybooks.map((storybook) => (
               <StorybookCard
-                key={storybook.id}
+                key={storybook.id !== 0 ? storybook.id : storybook.shareSlug || `story-${storybook.title}`}
                 storybook={storybook}
                 onToggleBookmark={onToggleBookmark}
                 onToggleLike={onToggleLike}
@@ -418,6 +427,7 @@ function StorybookCard({ storybook, onToggleBookmark, onToggleLike, onViewStoryb
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (!storybook.id) return;
                 onToggleLike(storybook.id);
               }}
               className="flex items-center gap-1.5 text-[#757575] hover:text-[#66BB6A] transition-colors"
@@ -431,13 +441,13 @@ function StorybookCard({ storybook, onToggleBookmark, onToggleLike, onViewStoryb
               size="icon"
               onClick={(e) => {
                 e.stopPropagation();
+                if (!storybook.id) return;
                 onToggleBookmark(storybook.id);
               }}
-              className={`w-8 h-8 rounded-full transition-colors border ${
-                storybook.isBookmarked
+              className={`w-8 h-8 rounded-full transition-colors border ${storybook.isBookmarked
                   ? 'text-[#66BB6A] bg-[#F1F8E9] border-[#66BB6A]/30'
                   : 'text-[#757575] hover:text-[#66BB6A] hover:bg-[#F1F8E9] border-transparent hover:border-[#66BB6A]/20'
-              }`}
+                }`}
             >
               <Bookmark
                 className={`w-4 h-4 ${storybook.isBookmarked ? 'fill-current' : ''}`}
