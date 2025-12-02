@@ -141,7 +141,7 @@ export function CreatePage() {
   const [selectedLength, setSelectedLength] = useState('15페이지');
   const [selectedLanguage, setSelectedLanguage] = useState('한국어');
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<number[]>([]);
   const [selectedArtStyle, setSelectedArtStyle] = useState<string | null>("수채화 꿈");
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -263,7 +263,7 @@ export function CreatePage() {
     setProgress(5);
 
     const minPages = parseInt(selectedLength.replace(/[^0-9]/g, ""), 10) || 10;
-    const characterIds = selectedCharacterId && selectedCharacterId > 0 ? [selectedCharacterId] : [];
+    const characterIds = selectedCharacterIds.filter((id) => id > 0).slice(0, 2);
     const languageCode = selectedLanguage === "한국어" ? "KO" : "EN";
     const moralText = isCustomMoral ? customMoralText.trim() : (selectedMoral || "").trim();
     const requiredElements = parseRequiredElements();
@@ -665,11 +665,17 @@ export function CreatePage() {
                 whileHover={{ scale: 1.05, y: -4 }}
                 onClick={() => {
                   if (character.id > 0) {
-                    setSelectedCharacterId(character.id);
+                    setSelectedCharacterIds((prev) => {
+                      if (prev.includes(character.id)) {
+                        return prev.filter((id) => id !== character.id);
+                      }
+                      if (prev.length >= 2) return prev; // 최대 2개
+                      return [...prev, character.id];
+                    });
                   }
                 }}
                 className={`flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${
-                  selectedCharacterId === character.id
+                  selectedCharacterIds.includes(character.id)
                     ? 'ring-4 ring-[#66BB6A] ring-offset-2'
                     : 'border-2 border-[#E0E0E0]'
                 }`}
@@ -692,7 +698,7 @@ export function CreatePage() {
                     {character.category}
                   </Badge>
                 </div>
-                {selectedCharacterId === character.id && (
+                {selectedCharacterIds.includes(character.id) && (
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
@@ -754,11 +760,17 @@ export function CreatePage() {
                 whileHover={{ scale: 1.05, y: -4 }}
                 onClick={() => {
                   if (character.id > 0) {
-                    setSelectedCharacterId(character.id);
+                    setSelectedCharacterIds((prev) => {
+                      if (prev.includes(character.id)) {
+                        return prev.filter((id) => id !== character.id);
+                      }
+                      if (prev.length >= 2) return prev; // 최대 2개
+                      return [...prev, character.id];
+                    });
                   }
                 }}
                 className={`flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${
-                  selectedCharacterId === character.id
+                  selectedCharacterIds.includes(character.id)
                     ? 'ring-4 ring-[#FFA726] ring-offset-2'
                     : 'border-2 border-[#E0E0E0]'
                 }`}
@@ -781,7 +793,7 @@ export function CreatePage() {
                     {character.category}
                   </Badge>
                 </div>
-                {selectedCharacterId === character.id && (
+                {selectedCharacterIds.includes(character.id) && (
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
