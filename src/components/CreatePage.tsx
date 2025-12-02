@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, BACKEND_ORIGIN } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
 const ageGroups = ["0-3세", "4-6세", "7-9세", "10-12세"];
@@ -160,11 +160,17 @@ export function CreatePage() {
 
   useEffect(() => {
     let mounted = true;
+    const normalizeImageUrl = (url?: string | null) => {
+      if (!url) return null;
+      if (/^https?:\/\//i.test(url)) return url;
+      return `${BACKEND_ORIGIN}${url.startsWith("/") ? url : `/${url}`}`;
+    };
+
     const mapCharacter = (c: CharacterDto, fallbackCategory: string): CharacterCard => ({
       id: c.id,
       name: c.name,
       category: c.scope || fallbackCategory,
-      imageUrl: c.imageUrl || null,
+      imageUrl: normalizeImageUrl(c.imageUrl),
     });
 
     const loadCharacters = async () => {
