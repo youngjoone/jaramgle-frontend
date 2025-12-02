@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from 'zustand';
+import { apiFetch } from '@/lib/api';
 
 export interface Storybook {
   id: number;
@@ -12,203 +13,27 @@ export interface Storybook {
   isBookmarked: boolean;
   isShared: boolean;
   isOwned: boolean;
+  shareSlug?: string | null;
 }
 
-const initialStorybooks: Storybook[] = [
-  // Shared community storybooks
-  {
-    id: 1,
-    imageUrl: "https://images.unsplash.com/photo-1600804010026-8387cc05e1c4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "작은 여우의 모험",
-    author: "김지우",
-    categories: ["판타지", "동물"],
-    likes: 342,
-    isBookmarked: false,
-    isShared: true,
-    isOwned: false
-  },
-  {
-    id: 2,
-    imageUrl: "https://images.unsplash.com/photo-1584446319794-0bf9637817c6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "마법의 정원 공주님",
-    author: "박소희",
-    categories: ["판타지", "마법"],
-    likes: 1284,
-    isBookmarked: true,
-    isShared: true,
-    isOwned: false
-  },
-  {
-    id: 3,
-    imageUrl: "https://images.unsplash.com/photo-1760801656960-e5ca8e1934c6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "용감한 작은 로봇",
-    author: "이민준",
-    categories: ["SF", "모험"],
-    likes: 856,
-    isBookmarked: false,
-    isShared: true,
-    isOwned: false
-  },
-  {
-    id: 4,
-    imageUrl: "https://images.unsplash.com/photo-1574244931790-ee19df716899?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "마법 숲의 비밀",
-    author: "정서연",
-    categories: ["판타지", "자연"],
-    likes: 523,
-    isBookmarked: false,
-    isShared: true,
-    isOwned: false
-  },
-  {
-    id: 5,
-    imageUrl: "https://images.unsplash.com/photo-1710846125494-10570e3502f1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "숲속 친구들의 우정",
-    author: "최하준",
-    categories: ["동물", "우정"],
-    likes: 2107,
-    isBookmarked: true,
-    isShared: true,
-    isOwned: false
-  },
-  {
-    id: 6,
-    imageUrl: "https://images.unsplash.com/photo-1530053969600-caed2596d242?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "바다 속 탐험",
-    author: "강민서",
-    categories: ["바다", "모험"],
-    likes: 945,
-    isBookmarked: false,
-    isShared: true,
-    isOwned: false
-  },
-  {
-    id: 7,
-    imageUrl: "https://images.unsplash.com/photo-1727363584291-433dcd86a0fa?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "별을 향한 여행",
-    author: "윤채원",
-    categories: ["우주", "모험"],
-    likes: 678,
-    isBookmarked: false,
-    isShared: true,
-    isOwned: false
-  },
-  {
-    id: 8,
-    imageUrl: "https://images.unsplash.com/photo-1742960597696-837ffc8a64bb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "잃어버린 왕국",
-    author: "김도윤",
-    categories: ["판타지", "왕국"],
-    likes: 1456,
-    isBookmarked: true,
-    isShared: true,
-    isOwned: false
-  },
-  {
-    id: 9,
-    imageUrl: "https://images.unsplash.com/photo-1610926597998-fc7f2c1b89b0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "용의 비밀",
-    author: "이서진",
-    categories: ["판타지", "드래곤"],
-    likes: 1823,
-    isBookmarked: false,
-    isShared: true,
-    isOwned: false
-  },
-  {
-    id: 10,
-    imageUrl: "https://images.unsplash.com/photo-1739681118696-d7b3d05d5fa9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "마법의 정원",
-    author: "박지호",
-    categories: ["마법", "자연"],
-    likes: 2543,
-    isBookmarked: true,
-    isShared: true,
-    isOwned: false
-  },
-  // My owned storybooks (some shared, some not)
-  {
-    id: 101,
-    imageUrl: "https://images.unsplash.com/photo-1614112163164-e8749a2e7628?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "달님과 함께하는 꿈",
-    author: "나",
-    categories: ["자장가", "꿈"],
-    likes: 127,
-    isBookmarked: false,
-    isShared: true,
-    isOwned: true
-  },
-  {
-    id: 102,
-    imageUrl: "https://images.unsplash.com/photo-1737689677304-a2661ae592a8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "북극곰의 겨울 여행",
-    author: "나",
-    categories: ["동물", "겨울"],
-    likes: 0,
-    isBookmarked: false,
-    isShared: false,
-    isOwned: true
-  },
-  {
-    id: 103,
-    imageUrl: "https://images.unsplash.com/photo-1558898478-9ac0461266c1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "나비의 정원",
-    author: "나",
-    categories: ["자연", "마법"],
-    likes: 89,
-    isBookmarked: false,
-    isShared: true,
-    isOwned: true
-  },
-  {
-    id: 104,
-    imageUrl: "https://images.unsplash.com/photo-1648752305744-40ce4f181f70?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "달나라로 가는 로켓",
-    author: "나",
-    categories: ["우주", "모험"],
-    likes: 0,
-    isBookmarked: false,
-    isShared: false,
-    isOwned: true
-  },
-  {
-    id: 105,
-    imageUrl: "https://images.unsplash.com/photo-1558613468-da6379080163?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "공룡시대 탐험",
-    author: "나",
-    categories: ["공룡", "모험"],
-    likes: 234,
-    isBookmarked: false,
-    isShared: true,
-    isOwned: true
-  },
-  {
-    id: 106,
-    imageUrl: "https://images.unsplash.com/photo-1621450203249-5af080aa1bcc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-    title: "인어공주의 비밀 동굴",
-    author: "나",
-    categories: ["바다", "판타지"],
-    likes: 0,
-    isBookmarked: false,
-    isShared: false,
-    isOwned: true
-  }
-];
+const placeholderImage = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80";
 
 interface StorybooksState {
   storybooks: Storybook[];
   viewingStorybook: Storybook | null;
   toggleBookmark: (id: number) => void;
   toggleLike: (id: number) => void;
-  toggleShare: (id: number) => void;
-  deleteStorybook: (id: number) => void;
+  toggleShare: (id: number) => Promise<void>;
+  deleteStorybook: (id: number) => Promise<void>;
   setViewingStorybook: (storybook: Storybook | null) => void;
   getSharedStorybooks: () => Storybook[];
   getOwnedStorybooks: () => Storybook[];
+  setStorybooks: (items: Storybook[]) => void;
+  loadMyStories: () => Promise<void>;
 }
 
 export const useStorybooksStore = create<StorybooksState>((set, get) => ({
-  storybooks: initialStorybooks,
+  storybooks: [],
   viewingStorybook: null,
   toggleBookmark: (id) => set((state) => ({
     storybooks: state.storybooks.map(book =>
@@ -220,15 +45,51 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       book.id === id ? { ...book, likes: book.likes + 1 } : book
     )
   })),
-  toggleShare: (id) => set((state) => ({
-    storybooks: state.storybooks.map(book =>
-      book.id === id ? { ...book, isShared: !book.isShared } : book
-    )
-  })),
-  deleteStorybook: (id) => set((state) => ({
-    storybooks: state.storybooks.filter(book => book.id !== id)
-  })),
+  toggleShare: async (id) => {
+    try {
+      const resp = await apiFetch<{ slug: string }>(`/stories/${id}/share`, { method: "POST" });
+      set((state) => ({
+        storybooks: state.storybooks.map(book =>
+          book.id === id ? { ...book, isShared: true, shareSlug: resp.slug } : book
+        )
+      }));
+    } catch (err) {
+      console.error("공유 설정 실패", err);
+      throw err;
+    }
+  },
+  deleteStorybook: async (id) => {
+    await apiFetch(`/stories/${id}`, { method: "DELETE" });
+    set((state) => ({
+      storybooks: state.storybooks.filter(book => book.id !== id)
+    }));
+  },
   setViewingStorybook: (storybook) => set({ viewingStorybook: storybook }),
   getSharedStorybooks: () => get().storybooks.filter(book => book.isShared),
   getOwnedStorybooks: () => get().storybooks.filter(book => book.isOwned),
+  setStorybooks: (items) => set({ storybooks: items }),
+  loadMyStories: async () => {
+    const stories = await apiFetch<Array<{
+      id: number;
+      title: string;
+      coverImageUrl?: string | null;
+      topics?: string[];
+      shareSlug?: string | null;
+      createdAt?: string;
+    }>>("/stories");
+
+    const mapped: Storybook[] = stories.map((s) => ({
+      id: s.id,
+      title: s.title || "제목 없음",
+      author: "나",
+      imageUrl: s.coverImageUrl || placeholderImage,
+      categories: s.topics || [],
+      likes: 0,
+      isBookmarked: false,
+      isShared: !!s.shareSlug,
+      shareSlug: s.shareSlug,
+      isOwned: true,
+    }));
+    set({ storybooks: mapped });
+  },
 }));
