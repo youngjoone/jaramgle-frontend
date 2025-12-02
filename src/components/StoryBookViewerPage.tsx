@@ -31,11 +31,21 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   const [pages, setPages] = useState<StoryPage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [storyId, setStoryId] = useState(storybook.id);
 
   // Audio states
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const formatTime = (seconds: number) => {
+    if (!seconds) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const containerRef = useRef<HTMLDivElement>(null);
   const placeholderImage = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80";
@@ -75,6 +85,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
             storybookPages?: any[];
           }>(`/public/shared-stories/${storybook.shareSlug}`);
           if (!mounted) return;
+          setStoryId(detail.story.id || 0);
           let sbPages = (detail.storybookPages && detail.storybookPages.length > 0)
             ? detail.storybookPages
             : (detail.story.storybookPages || []);
@@ -179,6 +190,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       audioRef.current.currentTime = 0;
     }
     setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
   }, [currentPage]);
 
   const handleNextPage = useCallback(() => {
@@ -254,13 +267,28 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
         // Create audio element
         console.log('🆕 Creating new Audio element');
         const audio = new Audio(currentPageData.audioUrl);
+
         audio.onerror = (e) => {
           console.error('❌ Audio loading error:', e);
           alert('오디오 파일을 불러올 수 없습니다.');
         };
-        audio.onended = () => setIsPlaying(false);
+
+        audio.onloadedmetadata = () => {
+          setDuration(audio.duration);
+        };
+
+        audio.ontimeupdate = () => {
+          setCurrentTime(audio.currentTime);
+        };
+
+        audio.onended = () => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+        };
+
         audio.onpause = () => setIsPlaying(false);
         audio.onplay = () => setIsPlaying(true);
+
         audioRef.current = audio;
         try {
           console.log('▶️ Attempting to play new audio...');
@@ -278,8 +306,9 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     console.log('🎙️ Generating new audio for page:', currentPageData.id);
     setIsGeneratingAudio(true);
     try {
+      const targetStoryId = storyId > 0 ? storyId : storybook.id;
       const res = await apiFetch<{ audioUrl: string }>(
-        `/stories/${storybook.id}/storybook/pages/${currentPageData.id}/audio`,
+        `/stories/${targetStoryId}/storybook/pages/${currentPageData.id}/audio`,
         {
           method: 'POST',
           body: {
@@ -308,13 +337,28 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
         // Play immediately
         console.log('🆕 Creating Audio element for generated audio');
         const audio = new Audio(newAudioUrl!);
+
         audio.onerror = (e) => {
           console.error('❌ Audio loading error:', e);
           alert('생성된 오디오 파일을 불러올 수 없습니다.');
         };
-        audio.onended = () => setIsPlaying(false);
+
+        audio.onloadedmetadata = () => {
+          setDuration(audio.duration);
+        };
+
+        audio.ontimeupdate = () => {
+          setCurrentTime(audio.currentTime);
+        };
+
+        audio.onended = () => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+        };
+
         audio.onpause = () => setIsPlaying(false);
         audio.onplay = () => setIsPlaying(true);
+
         audioRef.current = audio;
 
         console.log('▶️ Attempting to play generated audio...');
@@ -341,6 +385,14 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       audioRef.current.currentTime = 0;
       audioRef.current.play();
       setIsPlaying(true);
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = Number(e.target.value);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
     }
   };
 
@@ -388,7 +440,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
         </div>
 
         {/* Audio Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           {isGeneratingAudio ? (
             <Button
               variant="ghost"
@@ -399,7 +451,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
               <span className="text-sm">생성 중...</span>
             </Button>
           ) : currentPageData.audioUrl ? (
-            <div className="flex items-center gap-1 bg-white/40 backdrop-blur-md rounded-full border border-white/40 p-1">
+            <div className="flex items-center gap-3 bg-white/40 backdrop-blur-md rounded-full border border-white/40 p-2 pr-4">
+              {/* Play/Pause Button */}
               {isPlaying ? (
                 <Button
                   variant="ghost"
@@ -419,11 +472,34 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
                   <Play className="w-4 h-4 fill-current ml-0.5" />
                 </Button>
               )}
+
+              {/* Progress Bar & Time */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-[#7A6F76] font-medium w-9 text-right">
+                  {formatTime(currentTime)}
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={duration || 100}
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="w-24 md:w-32 h-1.5 bg-white/50 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#66BB6A] hover:[&::-webkit-slider-thumb]:scale-110 transition-all"
+                  style={{
+                    background: `linear-gradient(to right, #66BB6A ${(currentTime / (duration || 1)) * 100}%, rgba(255,255,255,0.5) ${(currentTime / (duration || 1)) * 100}%)`
+                  }}
+                />
+                <span className="text-xs text-[#7A6F76] font-medium w-9">
+                  {formatTime(duration)}
+                </span>
+              </div>
+
+              {/* Replay Button */}
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleReplayAudio}
-                className="rounded-full w-8 h-8 hover:bg-white/60 text-[#7A6F76]"
+                className="rounded-full w-8 h-8 hover:bg-white/60 text-[#7A6F76] ml-1"
               >
                 <RotateCcw className="w-4 h-4" />
               </Button>
