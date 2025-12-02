@@ -300,7 +300,7 @@ export function CreatePage() {
         method: "POST",
       });
       setProgress(100);
-      router.push("/library");
+      router.push("/my-books");
     } catch (err: any) {
       console.error("동화 생성/스토리북 생성 실패", err);
       alert("동화 또는 이미지 생성에 실패했어요. 잠시 후 다시 시도해 주세요.");
