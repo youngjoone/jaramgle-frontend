@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api';
 interface StoryPage {
   pageNo: number;
   imageUrl?: string | null;
+  image_url?: string | null;
   text: string;
 }
 
@@ -44,7 +45,12 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       try {
         const detail = await apiFetch<{ pages?: StoryPage[] }>(`/stories/${storybook.id}`);
         if (!mounted) return;
-        const sorted = (detail.pages || []).sort((a, b) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
+        const sorted = (detail.pages || [])
+          .map((p) => ({
+            ...p,
+            imageUrl: p.imageUrl || (p as any).image_url || null,
+          }))
+          .sort((a, b) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
         setPages(sorted);
         setCurrentPage(0);
       } catch (err) {
