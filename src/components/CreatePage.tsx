@@ -660,11 +660,17 @@ export function CreatePage() {
                     : 'border-2 border-[#E0E0E0]'
                 }`}
               >
-                <ImageWithFallback
-                  src={character.imageUrl || ''}
-                  alt={character.name}
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
+                {character.imageUrl ? (
+                  <ImageWithFallback
+                    src={character.imageUrl}
+                    alt={character.name}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-sm text-gray-600">
+                    이미지 준비중
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#424242]/70 via-[#424242]/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-4 text-center">
                   <p className="text-white font-semibold drop-shadow-lg mb-1">{character.name}</p>
@@ -743,11 +749,17 @@ export function CreatePage() {
                     : 'border-2 border-[#E0E0E0]'
                 }`}
               >
-                <ImageWithFallback
-                  src={character.imageUrl || ''}
-                  alt={character.name}
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
+                {character.imageUrl ? (
+                  <ImageWithFallback
+                    src={character.imageUrl}
+                    alt={character.name}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-sm text-gray-600">
+                    이미지 준비중
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#424242]/70 via-[#424242]/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-4 text-center">
                   <p className="text-white font-semibold drop-shadow-lg mb-1">{character.name}</p>
