@@ -1,13 +1,19 @@
 "use client";
 
 import { useState, useRef } from 'react';
-import { Wand2, Sparkles, ChevronLeft, ChevronRight, User, Star, Plus, Lightbulb, PenLine, X } from 'lucide-react';
+import { Wand2, Sparkles, ChevronLeft, ChevronRight, User, Star, Plus, Lightbulb, PenLine, X, Upload, Loader2, ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const examplePrompts = [
   "하늘을 나는 법을 배우는 용감한 작은 용",
@@ -137,6 +143,13 @@ export function CreatePage() {
   const [isCustomMoral, setIsCustomMoral] = useState(false);
   const [customMoralText, setCustomMoralText] = useState('');
 
+  // 캐릭터 생성 팝업 관련 상태
+  const [isCharacterPopupOpen, setIsCharacterPopupOpen] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
+  const [isCharacterGenerating, setIsCharacterGenerating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const styleScrollRef = useRef<HTMLDivElement>(null);
   const characterScrollRef = useRef<HTMLDivElement>(null);
   const myCharacterScrollRef = useRef<HTMLDivElement>(null);
@@ -174,6 +187,50 @@ export function CreatePage() {
         behavior: 'smooth'
       });
     }
+  };
+
+  // 캐릭터 팝업 관련 핸들러
+  const handleOpenCharacterPopup = () => {
+    setIsCharacterPopupOpen(true);
+    setUploadedImage(null);
+    setGeneratedCharacterImage(null);
+    setIsCharacterGenerating(false);
+  };
+
+  const handleCloseCharacterPopup = () => {
+    setIsCharacterPopupOpen(false);
+    setUploadedImage(null);
+    setGeneratedCharacterImage(null);
+    setIsCharacterGenerating(false);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImage(reader.result as string);
+        setGeneratedCharacterImage(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadBoxClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleCharacterGenerate = () => {
+    if (!uploadedImage) return;
+
+    setIsCharacterGenerating(true);
+
+    // Mock: 3초 후 생성 완료 (실제 API 연결 시 이 부분을 교체)
+    setTimeout(() => {
+      // Mock 생성 결과 - 업로드된 이미지를 그대로 사용 (실제로는 AI가 변환한 이미지)
+      setGeneratedCharacterImage(uploadedImage);
+      setIsCharacterGenerating(false);
+    }, 3000);
   };
 
   const handleGenerate = () => {
@@ -619,6 +676,7 @@ export function CreatePage() {
             {/* Add New Character Card */}
             <motion.div
               whileHover={{ scale: 1.05, y: -4 }}
+              onClick={handleOpenCharacterPopup}
               className="flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden border-2 border-dashed border-[#FFA726]/50 bg-[#FFF3E0]/30 flex flex-col items-center justify-center gap-3"
             >
               <div className="w-14 h-14 rounded-full bg-[#FFA726]/20 flex items-center justify-center">
@@ -708,6 +766,158 @@ export function CreatePage() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Character Creation Popup */}
+      <Dialog open={isCharacterPopupOpen} onOpenChange={setIsCharacterPopupOpen}>
+        <DialogContent className="sm:max-w-2xl bg-white rounded-3xl p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-4 border-b border-[#E0E0E0]">
+            <DialogTitle className="text-xl font-bold text-[#1A1A1A] flex items-center gap-2">
+              <Star className="w-6 h-6 text-[#FFA726]" />
+              새 캐릭터 만들기
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="p-6">
+            {/* Hidden File Input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*"
+              className="hidden"
+            />
+
+            {/* Image Boxes Container */}
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              {/* Upload Image Box */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-[#424242] text-center">원본 이미지</p>
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleUploadBoxClick}
+                  className={`relative w-full aspect-square rounded-2xl cursor-pointer transition-all overflow-hidden ${
+                    uploadedImage
+                      ? 'border-2 border-[#66BB6A]'
+                      : 'border-2 border-dashed border-[#E0E0E0] hover:border-[#FFA726] bg-[#FAFAFA]'
+                  }`}
+                >
+                  {uploadedImage ? (
+                    <>
+                      <img
+                        src={uploadedImage}
+                        alt="Uploaded"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <p className="text-white font-medium text-sm">클릭하여 변경</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                      <div className="w-16 h-16 rounded-full bg-[#FFA726]/10 flex items-center justify-center">
+                        <Upload className="w-8 h-8 text-[#FFA726]" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[#424242] font-medium text-sm">이미지 업로드</p>
+                        <p className="text-[#757575] text-xs mt-1">클릭하여 선택</p>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              </div>
+
+              {/* Generated Character Image Box */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-[#424242] text-center">생성된 캐릭터</p>
+                <div
+                  className={`relative w-full aspect-square rounded-2xl overflow-hidden ${
+                    generatedCharacterImage
+                      ? 'border-2 border-[#66BB6A]'
+                      : 'border-2 border-dashed border-[#E0E0E0] bg-[#FAFAFA]'
+                  }`}
+                >
+                  {isCharacterGenerating ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-[#FFF3E0] to-[#F1F8E9]">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                      >
+                        <Loader2 className="w-12 h-12 text-[#FFA726]" />
+                      </motion.div>
+                      <div className="text-center">
+                        <p className="text-[#424242] font-medium text-sm">캐릭터 생성 중...</p>
+                        <p className="text-[#757575] text-xs mt-1">잠시만 기다려주세요</p>
+                      </div>
+                    </div>
+                  ) : generatedCharacterImage ? (
+                    <img
+                      src={generatedCharacterImage}
+                      alt="Generated Character"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                      <div className="w-16 h-16 rounded-full bg-[#E0E0E0]/50 flex items-center justify-center">
+                        <ImageIcon className="w-8 h-8 text-[#BDBDBD]" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[#757575] font-medium text-sm">생성 대기</p>
+                        <p className="text-[#BDBDBD] text-xs mt-1">원본 이미지를 업로드하세요</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Info Text */}
+            <div className="bg-[#FFF3E0]/50 rounded-2xl p-4 mb-6">
+              <p className="text-sm text-[#757575] text-center">
+                사진을 업로드하면 AI가 동화책 스타일의 캐릭터로 변환해드립니다
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6 pt-0 flex flex-col">
+            {generatedCharacterImage && !isCharacterGenerating ? (
+              <Button
+                onClick={handleCloseCharacterPopup}
+                className="w-full rounded-2xl py-6 bg-gradient-to-r from-[#66BB6A] to-[#81C784] hover:from-[#388E3C] hover:to-[#66BB6A] text-white shadow-lg"
+              >
+                생성 완료
+              </Button>
+            ) : (
+              <div className="flex gap-3 w-full">
+                <Button
+                  variant="outline"
+                  onClick={handleCloseCharacterPopup}
+                  className="flex-1 rounded-2xl py-6 border-[#E0E0E0] text-[#757575] hover:bg-[#F5F5F5]"
+                >
+                  취소
+                </Button>
+                <Button
+                  onClick={handleCharacterGenerate}
+                  disabled={!uploadedImage || isCharacterGenerating}
+                  className="flex-1 rounded-2xl py-6 bg-gradient-to-r from-[#FFA726] to-[#FFB74D] hover:from-[#F57C00] hover:to-[#FFA726] text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isCharacterGenerating ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      생성 중...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Wand2 className="w-5 h-5" />
+                      캐릭터 생성
+                    </span>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
