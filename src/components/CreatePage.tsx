@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { Wand2, Sparkles, ChevronLeft, ChevronRight, User, Star, Plus, Lightbulb, PenLine, X } from 'lucide-react';
+import { Wand2, Sparkles, ChevronLeft, ChevronRight, User, Star, Plus, Lightbulb, PenLine, X, Upload, Loader2, ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,7 +10,12 @@ import { Progress } from '@/components/ui/progress';
 import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
 import { apiFetch, BACKEND_ORIGIN } from '@/lib/api';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/components/ui/toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const ageGroups = ["0-3세", "4-6세", "7-9세", "10-12세"];
 const genres = ["판타지", "모험", "교육", "자장가", "SF", "동화"];
@@ -137,7 +142,6 @@ type CharacterDto = {
 
 export function CreatePage() {
   const router = useRouter();
-  const { toast } = useToast();
   const [selectedAge, setSelectedAge] = useState('4-6세');
   const [selectedGenre, setSelectedGenre] = useState('판타지');
   const [selectedLength, setSelectedLength] = useState('15페이지');
@@ -156,6 +160,13 @@ export function CreatePage() {
   const [selectedMoral, setSelectedMoral] = useState<string | null>(null);
   const [isCustomMoral, setIsCustomMoral] = useState(false);
   const [customMoralText, setCustomMoralText] = useState('');
+
+  // 캐릭터 생성 팝업 관련 상태
+  const [isCharacterPopupOpen, setIsCharacterPopupOpen] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
+  const [isCharacterGenerating, setIsCharacterGenerating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const styleScrollRef = useRef<HTMLDivElement>(null);
   const characterScrollRef = useRef<HTMLDivElement>(null);
@@ -226,50 +237,6 @@ export function CreatePage() {
     );
   };
 
-  const randomPick = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
-  const randomPickMultiple = <T,>(items: T[], count: number): T[] => {
-    const shuffled = [...items].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.max(0, Math.min(count, items.length)));
-  };
-
-  const handleRandomFill = () => {
-    // 캐릭터 목록이 로딩 중일 때 안내
-    if (isLoadingCharacters) {
-      toast({
-        title: '캐릭터를 불러오는 중이에요',
-        description: '잠시만 기다려 주세요.',
-        variant: 'default',
-      });
-      return;
-    }
-
-    const randAge = randomPick(ageGroups);
-    const randGenre = randomPick(genres);
-    const randLength = randomPick(lengths);
-    const randLang = randomPick(languages);
-    const randGoals = randomPickMultiple(learningGoals, Math.max(1, Math.min(3, learningGoals.length)));
-    const randArtStyle = randomPick(artStylePresets).name;
-    const randElements = randomPickMultiple(elementPresets, Math.max(1, Math.min(3, elementPresets.length)));
-
-    // 캐릭터 최대 2명 랜덤 선택
-    const allChars = [...globalCharacters, ...myCharacters].filter(c => c.id > 0);
-    const randChars = allChars.length > 0
-      ? randomPickMultiple(allChars.map(c => c.id), Math.min(2, allChars.length))
-      : [];
-
-    setSelectedAge(randAge);
-    setSelectedGenre(randGenre);
-    setSelectedLength(randLength);
-    setSelectedLanguage(randLang);
-    setSelectedGoals(randGoals);
-    setSelectedArtStyle(randArtStyle);
-    setRequiredElementsText(randElements.join('\n'));
-    setSelectedCharacterIds(randChars);
-    setSelectedMoral(null);
-    setIsCustomMoral(false);
-    setCustomMoralText('');
-  };
-
   const handleMoralSelect = (moral: string) => {
     setSelectedMoral(moral);
     setIsCustomMoral(false);
@@ -297,6 +264,50 @@ export function CreatePage() {
     }
   };
 
+  // 캐릭터 팝업 관련 핸들러
+  const handleOpenCharacterPopup = () => {
+    setIsCharacterPopupOpen(true);
+    setUploadedImage(null);
+    setGeneratedCharacterImage(null);
+    setIsCharacterGenerating(false);
+  };
+
+  const handleCloseCharacterPopup = () => {
+    setIsCharacterPopupOpen(false);
+    setUploadedImage(null);
+    setGeneratedCharacterImage(null);
+    setIsCharacterGenerating(false);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImage(reader.result as string);
+        setGeneratedCharacterImage(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadBoxClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleCharacterGenerate = () => {
+    if (!uploadedImage) return;
+
+    setIsCharacterGenerating(true);
+
+    // Mock: 3초 후 생성 완료 (실제 API 연결 시 이 부분을 교체)
+    setTimeout(() => {
+      // Mock 생성 결과 - 업로드된 이미지를 그대로 사용 (실제로는 AI가 변환한 이미지)
+      setGeneratedCharacterImage(uploadedImage);
+      setIsCharacterGenerating(false);
+    }, 3000);
+  };
+
   const parseRequiredElements = () => {
     return requiredElementsText
       .split(/[\n,]/)
@@ -317,7 +328,7 @@ export function CreatePage() {
     const payload: Record<string, unknown> = {
       age_range: selectedAge,
       topics: [selectedGenre],
-      objectives: selectedGoals, // 빈 배열 허용
+      objectives: selectedGoals,
       min_pages: Math.min(20, Math.max(10, minPages)),
       language: languageCode,
       character_ids: characterIds,
@@ -347,7 +358,7 @@ export function CreatePage() {
       });
       setProgress(100);
       router.push("/my-books");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("동화 생성/스토리북 생성 실패", err);
       alert("동화 또는 이미지 생성에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
@@ -379,26 +390,16 @@ export function CreatePage() {
     <div className="h-screen overflow-y-auto bg-[#FFFFFF]">
       <div className="max-w-4xl mx-auto px-8 py-12">
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-3">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-3 mb-4">
             <div className="w-14 h-14 rounded-2xl bg-[#66BB6A] flex items-center justify-center shadow-sm">
               <Wand2 className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-[#1A1A1A] font-bold text-xl">동화책 생성</h1>
+            <h1 className="text-[#1A1A1A] font-bold">동화책 생성</h1>
           </div>
           <p className="text-[#757575] font-normal">
             이야기를 설명하고 생생하게 살아나는 것을 지켜보세요
           </p>
-        </div>
-        <div className="flex justify-end mb-6">
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-full px-4 py-2 text-sm border-[#66BB6A]/40 text-[#388E3C] hover:bg-[#F1F8E9]"
-            onClick={handleRandomFill}
-          >
-            랜덤 채우기
-          </Button>
         </div>
 
         {/* Parameters */}
@@ -725,7 +726,7 @@ export function CreatePage() {
                       if (prev.includes(character.id)) {
                         return prev.filter((id) => id !== character.id);
                       }
-                      if (prev.length >= 2) return prev; // 최대 2개
+                      if (prev.length >= 2) return prev;
                       return [...prev, character.id];
                     });
                   }
@@ -802,6 +803,7 @@ export function CreatePage() {
             {/* Add New Character Card */}
             <motion.div
               whileHover={{ scale: 1.05, y: -4 }}
+              onClick={handleOpenCharacterPopup}
               className="flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden border-2 border-dashed border-[#FFA726]/50 bg-[#FFF3E0]/30 flex flex-col items-center justify-center gap-3"
             >
               <div className="w-14 h-14 rounded-full bg-[#FFA726]/20 flex items-center justify-center">
@@ -820,7 +822,7 @@ export function CreatePage() {
                       if (prev.includes(character.id)) {
                         return prev.filter((id) => id !== character.id);
                       }
-                      if (prev.length >= 2) return prev; // 최대 2개
+                      if (prev.length >= 2) return prev;
                       return [...prev, character.id];
                     });
                   }
@@ -904,6 +906,158 @@ export function CreatePage() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Character Creation Popup */}
+      <Dialog open={isCharacterPopupOpen} onOpenChange={setIsCharacterPopupOpen}>
+        <DialogContent className="sm:max-w-2xl bg-white rounded-3xl p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-4 border-b border-[#E0E0E0]">
+            <DialogTitle className="text-xl font-bold text-[#1A1A1A] flex items-center gap-2">
+              <Star className="w-6 h-6 text-[#FFA726]" />
+              새 캐릭터 만들기
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="p-6">
+            {/* Hidden File Input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*"
+              className="hidden"
+            />
+
+            {/* Image Boxes Container */}
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              {/* Upload Image Box */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-[#424242] text-center">원본 이미지</p>
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleUploadBoxClick}
+                  className={`relative w-full aspect-square rounded-2xl cursor-pointer transition-all overflow-hidden ${
+                    uploadedImage
+                      ? 'border-2 border-[#66BB6A]'
+                      : 'border-2 border-dashed border-[#E0E0E0] hover:border-[#FFA726] bg-[#FAFAFA]'
+                  }`}
+                >
+                  {uploadedImage ? (
+                    <>
+                      <img
+                        src={uploadedImage}
+                        alt="Uploaded"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <p className="text-white font-medium text-sm">클릭하여 변경</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                      <div className="w-16 h-16 rounded-full bg-[#FFA726]/10 flex items-center justify-center">
+                        <Upload className="w-8 h-8 text-[#FFA726]" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[#424242] font-medium text-sm">이미지 업로드</p>
+                        <p className="text-[#757575] text-xs mt-1">클릭하여 선택</p>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              </div>
+
+              {/* Generated Character Image Box */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-[#424242] text-center">생성된 캐릭터</p>
+                <div
+                  className={`relative w-full aspect-square rounded-2xl overflow-hidden ${
+                    generatedCharacterImage
+                      ? 'border-2 border-[#66BB6A]'
+                      : 'border-2 border-dashed border-[#E0E0E0] bg-[#FAFAFA]'
+                  }`}
+                >
+                  {isCharacterGenerating ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-[#FFF3E0] to-[#F1F8E9]">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                      >
+                        <Loader2 className="w-12 h-12 text-[#FFA726]" />
+                      </motion.div>
+                      <div className="text-center">
+                        <p className="text-[#424242] font-medium text-sm">캐릭터 생성 중...</p>
+                        <p className="text-[#757575] text-xs mt-1">잠시만 기다려주세요</p>
+                      </div>
+                    </div>
+                  ) : generatedCharacterImage ? (
+                    <img
+                      src={generatedCharacterImage}
+                      alt="Generated Character"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                      <div className="w-16 h-16 rounded-full bg-[#E0E0E0]/50 flex items-center justify-center">
+                        <ImageIcon className="w-8 h-8 text-[#BDBDBD]" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[#757575] font-medium text-sm">생성 대기</p>
+                        <p className="text-[#BDBDBD] text-xs mt-1">원본 이미지를 업로드하세요</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Info Text */}
+            <div className="bg-[#FFF3E0]/50 rounded-2xl p-4 mb-6">
+              <p className="text-sm text-[#757575] text-center">
+                사진을 업로드하면 AI가 동화책 스타일의 캐릭터로 변환해드립니다
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6 pt-0 flex flex-col">
+            {generatedCharacterImage && !isCharacterGenerating ? (
+              <Button
+                onClick={handleCloseCharacterPopup}
+                className="w-full rounded-2xl py-6 bg-gradient-to-r from-[#66BB6A] to-[#81C784] hover:from-[#388E3C] hover:to-[#66BB6A] text-white shadow-lg"
+              >
+                생성 완료
+              </Button>
+            ) : (
+              <div className="flex gap-3 w-full">
+                <Button
+                  variant="outline"
+                  onClick={handleCloseCharacterPopup}
+                  className="flex-1 rounded-2xl py-6 border-[#E0E0E0] text-[#757575] hover:bg-[#F5F5F5]"
+                >
+                  취소
+                </Button>
+                <Button
+                  onClick={handleCharacterGenerate}
+                  disabled={!uploadedImage || isCharacterGenerating}
+                  className="flex-1 rounded-2xl py-6 bg-gradient-to-r from-[#FFA726] to-[#FFB74D] hover:from-[#F57C00] hover:to-[#FFA726] text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isCharacterGenerating ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      생성 중...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Wand2 className="w-5 h-5" />
+                      캐릭터 생성
+                    </span>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
