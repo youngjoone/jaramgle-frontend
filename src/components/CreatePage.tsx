@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
 import { apiFetch, BACKEND_ORIGIN } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/ui/toast';
 
 const ageGroups = ["0-3세", "4-6세", "7-9세", "10-12세"];
 const genres = ["판타지", "모험", "교육", "자장가", "SF", "동화"];
@@ -136,6 +137,7 @@ type CharacterDto = {
 
 export function CreatePage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [selectedAge, setSelectedAge] = useState('4-6세');
   const [selectedGenre, setSelectedGenre] = useState('판타지');
   const [selectedLength, setSelectedLength] = useState('15페이지');
@@ -222,6 +224,50 @@ export function CreatePage() {
         ? prev.filter(g => g !== goal)
         : [...prev, goal]
     );
+  };
+
+  const randomPick = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+  const randomPickMultiple = <T,>(items: T[], count: number): T[] => {
+    const shuffled = [...items].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, Math.max(0, Math.min(count, items.length)));
+  };
+
+  const handleRandomFill = () => {
+    // 캐릭터 목록이 로딩 중일 때 안내
+    if (isLoadingCharacters) {
+      toast({
+        title: '캐릭터를 불러오는 중이에요',
+        description: '잠시만 기다려 주세요.',
+        variant: 'default',
+      });
+      return;
+    }
+
+    const randAge = randomPick(ageGroups);
+    const randGenre = randomPick(genres);
+    const randLength = randomPick(lengths);
+    const randLang = randomPick(languages);
+    const randGoals = randomPickMultiple(learningGoals, Math.max(1, Math.min(3, learningGoals.length)));
+    const randArtStyle = randomPick(artStylePresets).name;
+    const randElements = randomPickMultiple(elementPresets, Math.max(1, Math.min(3, elementPresets.length)));
+
+    // 캐릭터 최대 2명 랜덤 선택
+    const allChars = [...globalCharacters, ...myCharacters].filter(c => c.id > 0);
+    const randChars = allChars.length > 0
+      ? randomPickMultiple(allChars.map(c => c.id), Math.min(2, allChars.length))
+      : [];
+
+    setSelectedAge(randAge);
+    setSelectedGenre(randGenre);
+    setSelectedLength(randLength);
+    setSelectedLanguage(randLang);
+    setSelectedGoals(randGoals);
+    setSelectedArtStyle(randArtStyle);
+    setRequiredElementsText(randElements.join('\n'));
+    setSelectedCharacterIds(randChars);
+    setSelectedMoral(null);
+    setIsCustomMoral(false);
+    setCustomMoralText('');
   };
 
   const handleMoralSelect = (moral: string) => {
@@ -333,16 +379,26 @@ export function CreatePage() {
     <div className="h-screen overflow-y-auto bg-[#FFFFFF]">
       <div className="max-w-4xl mx-auto px-8 py-12">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-3 mb-4">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-3 mb-3">
             <div className="w-14 h-14 rounded-2xl bg-[#66BB6A] flex items-center justify-center shadow-sm">
               <Wand2 className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-[#1A1A1A] font-bold">동화책 생성</h1>
+            <h1 className="text-[#1A1A1A] font-bold text-xl">동화책 생성</h1>
           </div>
           <p className="text-[#757575] font-normal">
             이야기를 설명하고 생생하게 살아나는 것을 지켜보세요
           </p>
+        </div>
+        <div className="flex justify-end mb-6">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full px-4 py-2 text-sm border-[#66BB6A]/40 text-[#388E3C] hover:bg-[#F1F8E9]"
+            onClick={handleRandomFill}
+          >
+            랜덤 채우기
+          </Button>
         </div>
 
         {/* Parameters */}
