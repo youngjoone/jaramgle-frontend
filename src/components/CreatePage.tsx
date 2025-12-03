@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Wand2, Sparkles, ChevronLeft, ChevronRight, User, Star, Plus, Lightbulb, PenLine, X, Upload, Loader2, ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
+import { apiFetch, BACKEND_ORIGIN } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -15,20 +17,24 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const examplePrompts = [
-  "하늘을 나는 법을 배우는 용감한 작은 용",
-  "말하는 동물들이 사는 마법의 숲",
-  "친절한 외계인과 함께하는 우주 모험",
-  "인어공주의 바다 왕국",
-  "시간 여행을 하는 테디베어",
-  "과학을 사랑하는 공주님"
-];
-
 const ageGroups = ["0-3세", "4-6세", "7-9세", "10-12세"];
 const genres = ["판타지", "모험", "교육", "자장가", "SF", "동화"];
 const lengths = ["10페이지", "15페이지", "20페이지"];
 const languages = ["한국어", "English"];
 const learningGoals = ["과학", "수학", "영어", "한글", "역사", "자연", "예술", "생활습관"];
+
+const elementPresets = [
+  "마법 열쇠",
+  "구름 위 성",
+  "반짝이는 지도",
+  "시간을 알려주는 별시계",
+  "무지개 다리",
+  "빛나는 지팡이",
+  "친구 로봇",
+  "용감한 고양이",
+  "숨겨진 비밀 문",
+  "노래하는 꽃"
+];
 
 // 아트 스타일 프리셋 (통합)
 const artStylePresets = [
@@ -111,32 +117,44 @@ const characterPresets = [
   }
 ];
 
-// 내 캐릭터 (사용자가 만든 캐릭터) - 실제로는 API에서 가져올 데이터
-const myCharacters = [
-  {
-    name: "우리 아이",
-    category: "내 캐릭터",
-    imageUrl: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
-  },
-  {
-    name: "우리 강아지",
-    category: "내 캐릭터",
-    imageUrl: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
-  }
-];
+type CharacterCard = {
+  id: number;
+  name: string;
+  category: string;
+  imageUrl: string | null;
+};
+
+type CharacterDto = {
+  id: number;
+  name: string;
+  slug?: string;
+  persona?: string | null;
+  catchphrase?: string | null;
+  promptKeywords?: string | null;
+  imageUrl?: string | null;
+  image_url?: string | null;
+  visualDescription?: string | null;
+  descriptionPrompt?: string | null;
+  modelingStatus?: string | null;
+  scope?: string | null;
+  artStyle?: string | null;
+};
 
 export function CreatePage() {
-  const [prompt, setPrompt] = useState('');
+  const router = useRouter();
   const [selectedAge, setSelectedAge] = useState('4-6세');
   const [selectedGenre, setSelectedGenre] = useState('판타지');
   const [selectedLength, setSelectedLength] = useState('15페이지');
   const [selectedLanguage, setSelectedLanguage] = useState('한국어');
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
-  const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null);
-  const [selectedMyCharacter, setSelectedMyCharacter] = useState<string | null>(null);
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<number[]>([]);
   const [selectedArtStyle, setSelectedArtStyle] = useState<string | null>("수채화 꿈");
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [requiredElementsText, setRequiredElementsText] = useState('');
+  const [globalCharacters, setGlobalCharacters] = useState<CharacterCard[]>([]);
+  const [myCharacters, setMyCharacters] = useState<CharacterCard[]>([]);
+  const [isLoadingCharacters, setIsLoadingCharacters] = useState(false);
 
   // 교훈 관련 상태
   const [selectedMoral, setSelectedMoral] = useState<string | null>(null);
@@ -153,6 +171,63 @@ export function CreatePage() {
   const styleScrollRef = useRef<HTMLDivElement>(null);
   const characterScrollRef = useRef<HTMLDivElement>(null);
   const myCharacterScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const normalizeImageUrl = (url?: string | null) => {
+      if (!url) return null;
+      if (/^https?:\/\//i.test(url)) return url;
+      return `${BACKEND_ORIGIN}${url.startsWith("/") ? url : `/${url}`}`;
+    };
+
+    const mapCharacter = (c: CharacterDto, fallbackCategory: string): CharacterCard => ({
+      id: c.id,
+      name: c.name,
+      category: c.scope || fallbackCategory,
+      imageUrl: normalizeImageUrl(c.imageUrl || c.image_url),
+    });
+
+    const loadCharacters = async () => {
+      setIsLoadingCharacters(true);
+      try {
+        const globals = await apiFetch<CharacterDto[]>("/public/characters");
+        if (mounted) {
+          setGlobalCharacters(globals.slice(0, 10).map((c) => mapCharacter(c, "추천 캐릭터")));
+        }
+      } catch (err) {
+        console.error("추천 캐릭터 불러오기 실패", err);
+        if (mounted) {
+          setGlobalCharacters(characterPresets.map((c, idx) => ({
+            id: -(idx + 1),
+            name: c.name,
+            category: c.category,
+            imageUrl: c.imageUrl,
+          })));
+        }
+      }
+
+      try {
+        const mine = await apiFetch<CharacterDto[]>("/characters/me");
+        if (mounted) {
+          setMyCharacters(mine.slice(0, 10).map((c) => mapCharacter(c, "내 캐릭터")));
+        }
+      } catch (err) {
+        console.error("내 캐릭터 불러오기 실패", err);
+        if (mounted) {
+          setMyCharacters([]);
+        }
+      } finally {
+        if (mounted) {
+          setIsLoadingCharacters(false);
+        }
+      }
+    };
+
+    loadCharacters();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const toggleGoal = (goal: string) => {
     setSelectedGoals(prev =>
@@ -233,20 +308,62 @@ export function CreatePage() {
     }, 3000);
   };
 
-  const handleGenerate = () => {
-    setIsGenerating(true);
-    setProgress(0);
+  const parseRequiredElements = () => {
+    return requiredElementsText
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  };
 
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => setIsGenerating(false), 500);
-          return 100;
-        }
-        return prev + 10;
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    setProgress(5);
+
+    const minPages = parseInt(selectedLength.replace(/[^0-9]/g, ""), 10) || 10;
+    const characterIds = selectedCharacterIds.filter((id) => id > 0).slice(0, 2);
+    const languageCode = selectedLanguage === "한국어" ? "KO" : "EN";
+    const moralText = isCustomMoral ? customMoralText.trim() : (selectedMoral || "").trim();
+    const requiredElements = parseRequiredElements();
+
+    const payload: Record<string, unknown> = {
+      age_range: selectedAge,
+      topics: [selectedGenre],
+      objectives: selectedGoals,
+      min_pages: Math.min(20, Math.max(10, minPages)),
+      language: languageCode,
+      character_ids: characterIds,
+    };
+
+    if (selectedArtStyle) {
+      payload.art_style = selectedArtStyle;
+    }
+    if (moralText) {
+      payload.moral = moralText;
+    }
+    if (requiredElements.length > 0) {
+      payload.required_elements = requiredElements;
+    }
+
+    try {
+      // 1) 글 생성
+      const story = await apiFetch<{ id: number }>("/stories", {
+        method: "POST",
+        body: payload,
       });
-    }, 400);
+      setProgress(50);
+
+      // 2) 이미지/스토리북 생성
+      await apiFetch(`/stories/${story.id}/storybook`, {
+        method: "POST",
+      });
+      setProgress(100);
+      router.push("/my-books");
+    } catch (err: unknown) {
+      console.error("동화 생성/스토리북 생성 실패", err);
+      alert("동화 또는 이미지 생성에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const scrollStylePresets = (direction: 'left' | 'right') => {
@@ -398,34 +515,28 @@ export function CreatePage() {
           </div>
         </div>
 
-        {/* Story Prompt Input */}
-        <div className="mb-6">
-          <label className="text-sm text-[#1A1A1A] font-semibold mb-3 block">동화책 스토리</label>
-          <div className="relative">
-            <Textarea
-              placeholder="동화책 아이디어를 설명해주세요... (예: 마법의 정원을 발견하는 호기심 많은 작은 여우)"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="w-full min-h-[140px] bg-white border border-[#E0E0E0] text-[#1A1A1A] placeholder:text-[#757575] rounded-3xl px-6 py-4 text-lg focus-visible:ring-2 focus-visible:ring-[#1A1A1A] focus-visible:border-[#1A1A1A] transition-all"
-            />
-            <div className="absolute bottom-4 right-4">
-              <Sparkles className="w-5 h-5 text-[#757575]" />
-            </div>
-          </div>
-        </div>
-
-        {/* Example Prompts */}
+        {/* Required Elements */}
         <div className="mb-10">
-          <p className="text-sm text-[#757575] font-medium mb-3">예시를 참고해보세요:</p>
-          <div className="flex flex-wrap gap-2">
-            {examplePrompts.map((example, index) => (
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-5 h-5 text-[#66BB6A]" />
+            <h3 className="text-[#424242] font-semibold">꼭 등장했으면 하는 요소 (선택)</h3>
+          </div>
+          <Textarea
+            placeholder="예: 무지개 다리, 노래하는 꽃, 반짝이는 지도"
+            value={requiredElementsText}
+            onChange={(e) => setRequiredElementsText(e.target.value)}
+            className="w-full min-h-[100px] bg-white border border-[#E0E0E0] text-[#1A1A1A] placeholder:text-[#757575] rounded-3xl px-6 py-4 text-lg focus-visible:ring-2 focus-visible:ring-[#1A1A1A] focus-visible:border-[#1A1A1A] transition-all"
+          />
+          <p className="text-xs text-[#757575] mt-2">쉼표 또는 줄바꿈으로 여러 개를 입력할 수 있어요.</p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {elementPresets.map((item) => (
               <Badge
-                key={index}
+                key={item}
                 variant="outline"
-                className="bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#1A1A1A] cursor-pointer transition-all px-4 py-2 rounded-full font-medium"
-                onClick={() => setPrompt(example)}
+                className="cursor-pointer transition-all px-4 py-2 rounded-full font-medium bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30"
+                onClick={() => setRequiredElementsText((prev) => prev ? `${prev}\n${item}` : item)}
               >
-                {example}
+                {item}
               </Badge>
             ))}
           </div>
@@ -602,25 +713,41 @@ export function CreatePage() {
             className="flex gap-4 pt-4 pb-6 px-3 overflow-x-auto scrollbar-hide scroll-smooth"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {characterPresets.map((character, index) => (
+            {isLoadingCharacters && (
+              <div className="text-sm text-[#757575] px-3">캐릭터를 불러오는 중입니다...</div>
+            )}
+            {!isLoadingCharacters && globalCharacters.map((character) => (
               <motion.div
-                key={index}
+                key={character.id}
                 whileHover={{ scale: 1.05, y: -4 }}
                 onClick={() => {
-                  setSelectedCharacter(character.name);
-                  setSelectedMyCharacter(null);
+                  if (character.id > 0) {
+                    setSelectedCharacterIds((prev) => {
+                      if (prev.includes(character.id)) {
+                        return prev.filter((id) => id !== character.id);
+                      }
+                      if (prev.length >= 2) return prev;
+                      return [...prev, character.id];
+                    });
+                  }
                 }}
                 className={`flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${
-                  selectedCharacter === character.name
+                  selectedCharacterIds.includes(character.id)
                     ? 'ring-4 ring-[#66BB6A] ring-offset-2'
                     : 'border-2 border-[#E0E0E0]'
                 }`}
               >
-                <ImageWithFallback
-                  src={character.imageUrl}
-                  alt={character.name}
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
+                {character.imageUrl ? (
+                  <ImageWithFallback
+                    src={character.imageUrl}
+                    alt={character.name}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-sm text-gray-600">
+                    이미지 준비중
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#424242]/70 via-[#424242]/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-4 text-center">
                   <p className="text-white font-semibold drop-shadow-lg mb-1">{character.name}</p>
@@ -628,7 +755,7 @@ export function CreatePage() {
                     {character.category}
                   </Badge>
                 </div>
-                {selectedCharacter === character.name && (
+                {selectedCharacterIds.includes(character.id) && (
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
@@ -685,25 +812,38 @@ export function CreatePage() {
               <p className="text-[#FFA726] font-semibold text-sm">캐릭터 추가</p>
             </motion.div>
 
-            {myCharacters.map((character, index) => (
+            {myCharacters.map((character) => (
               <motion.div
-                key={index}
+                key={character.id}
                 whileHover={{ scale: 1.05, y: -4 }}
                 onClick={() => {
-                  setSelectedMyCharacter(character.name);
-                  setSelectedCharacter(null);
+                  if (character.id > 0) {
+                    setSelectedCharacterIds((prev) => {
+                      if (prev.includes(character.id)) {
+                        return prev.filter((id) => id !== character.id);
+                      }
+                      if (prev.length >= 2) return prev;
+                      return [...prev, character.id];
+                    });
+                  }
                 }}
                 className={`flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${
-                  selectedMyCharacter === character.name
+                  selectedCharacterIds.includes(character.id)
                     ? 'ring-4 ring-[#FFA726] ring-offset-2'
                     : 'border-2 border-[#E0E0E0]'
                 }`}
               >
-                <ImageWithFallback
-                  src={character.imageUrl}
-                  alt={character.name}
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
+                {character.imageUrl ? (
+                  <ImageWithFallback
+                    src={character.imageUrl}
+                    alt={character.name}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-sm text-gray-600">
+                    이미지 준비중
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#424242]/70 via-[#424242]/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-4 text-center">
                   <p className="text-white font-semibold drop-shadow-lg mb-1">{character.name}</p>
@@ -711,7 +851,7 @@ export function CreatePage() {
                     {character.category}
                   </Badge>
                 </div>
-                {selectedMyCharacter === character.name && (
+                {selectedCharacterIds.includes(character.id) && (
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
@@ -730,7 +870,7 @@ export function CreatePage() {
           <Button
             className="w-full bg-gradient-to-r from-[#66BB6A] via-[#81C784] to-[#388E3C] hover:from-[#388E3C] hover:via-[#2E7D32] hover:to-[#1B5E20] text-white py-7 rounded-3xl shadow-[0_8px_32px_rgba(102,187,106,0.4)] hover:shadow-[0_12px_40px_rgba(102,187,106,0.5)] hover:scale-[1.02] transition-all duration-300 border-0"
             onClick={handleGenerate}
-            disabled={!prompt || isGenerating}
+            disabled={isGenerating}
           >
             {isGenerating ? (
               <span className="flex items-center gap-2 justify-center font-semibold">

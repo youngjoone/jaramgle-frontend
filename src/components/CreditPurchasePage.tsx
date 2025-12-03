@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { CreditCard, Lock, Zap } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
 interface PricingPlan {
   id: number;
@@ -13,6 +14,7 @@ interface PricingPlan {
   bonus: number;
   price: number;
   isPopular: boolean;
+  productCode?: string;
 }
 
 interface Particle {
@@ -66,6 +68,8 @@ const pricingPlans: PricingPlan[] = [
 export function CreditPurchasePage() {
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const [particles, setParticles] = useState<Particle[]>([]);
+  const [plans, setPlans] = useState<PricingPlan[]>(pricingPlans);
+  const [loadingId, setLoadingId] = useState<number | null>(null);
 
   // Generate particles only on client side to avoid hydration mismatch
   useEffect(() => {
@@ -78,6 +82,64 @@ export function CreditPurchasePage() {
       duration: 10 + Math.random() * 10,
     })));
   }, []);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const products = await apiFetch<Array<{
+          code: string;
+          name: string;
+          description: string;
+          hearts: number;
+          bonusHearts: number;
+          price: number;
+          sortOrder: number;
+        }>>("/billing/products");
+        const mapped: PricingPlan[] = products
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((p, idx) => ({
+            id: idx + 1,
+            name: p.name,
+            emoji: '',
+            credits: p.hearts,
+            bonus: p.bonusHearts,
+            price: p.price,
+            isPopular: idx === 1, // 두 번째 상품을 기본 인기 상품으로
+            productCode: p.code,
+          }));
+        if (mapped.length > 0) {
+          setPlans(mapped);
+        }
+      } catch (err) {
+        console.error("상품 목록 불러오기 실패", err);
+        // 실패 시 기본 프리셋 사용
+      }
+    };
+    loadProducts();
+  }, []);
+
+  const handlePurchase = async (plan: PricingPlan) => {
+    if (!plan.productCode) {
+      alert("상품 코드가 없습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    setLoadingId(plan.id);
+    try {
+      const order = await apiFetch<{ id: number }>("/billing/orders", {
+        method: "POST",
+        body: { product_code: plan.productCode, quantity: 1 },
+      });
+      await apiFetch(`/billing/orders/${order.id}/confirm`, {
+        method: "POST",
+      });
+      alert("하트 충전이 완료되었습니다!");
+    } catch (err: any) {
+      console.error("하트 충전 실패", err);
+      alert("하트 충전에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setLoadingId(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#FFFFFF] relative overflow-hidden py-20 sm:py-32">
@@ -142,7 +204,7 @@ export function CreditPurchasePage() {
 
         {/* Pricing Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 mb-12 sm:mb-16">
-          {pricingPlans.map((plan, index) => (
+          {plans.map((plan, index) => (
             <motion.div
               key={plan.id}
               className="relative"
@@ -219,7 +281,7 @@ export function CreditPurchasePage() {
                         letterSpacing: '-0.02em',
                       }}
                     >
-                      ${plan.price}
+                      ₩{plan.price.toLocaleString()}
                     </span>
                   </div>
 
@@ -230,8 +292,10 @@ export function CreditPurchasePage() {
                         ? 'bg-gradient-to-r from-[#66BB6A] to-[#388E3C] text-white border-0 hover:shadow-lg hover:shadow-[#66BB6A]/40 hover:scale-[1.02]'
                         : 'bg-white/50 text-[#66BB6A] border-2 border-[#66BB6A]/30 hover:bg-gradient-to-r hover:from-[#66BB6A] hover:to-[#388E3C] hover:text-white hover:border-transparent hover:scale-[1.02]'
                     }`}
+                    onClick={() => handlePurchase(plan)}
+                    disabled={loadingId === plan.id}
                   >
-                    구매하기
+                    {loadingId === plan.id ? "구매 중..." : "구매하기"}
                   </Button>
                 </div>
               </motion.div>
