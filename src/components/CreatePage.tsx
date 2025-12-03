@@ -392,9 +392,6 @@ export function CreatePage() {
         {/* Header */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-14 h-14 rounded-2xl bg-[#66BB6A] flex items-center justify-center shadow-sm">
-              <Wand2 className="w-7 h-7 text-white" />
-            </div>
             <h1 className="text-[#1A1A1A] font-bold">동화책 생성</h1>
           </div>
           <p className="text-[#757575] font-normal">
