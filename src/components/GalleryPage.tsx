@@ -15,9 +15,11 @@ interface GalleryPageProps {
   onDelete: (id: number) => void;
   onNavigateToCreate: () => void;
   onViewStorybook: (storybook: Storybook) => void;
+  isLoading?: boolean;
+  error?: string | null;
 }
 
-export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToCreate, onViewStorybook }: GalleryPageProps) {
+export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToCreate, onViewStorybook, isLoading = false, error = null }: GalleryPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -195,7 +197,15 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
 
       {/* Grid Layout - pt-24 for spacing below h-16 topbar */}
       <div className="pt-24 px-4 md:px-6 pb-8 bg-[var(--background)] min-h-screen">
-        {storybooks.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center h-[calc(100vh-200px)] text-sm text-[#757575]">
+            내 동화책을 불러오는 중...
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-[calc(100vh-200px)] text-sm text-red-500">
+            {error}
+          </div>
+        ) : storybooks.length === 0 ? (
           <div className="flex items-center justify-center h-[calc(100vh-200px)]">
             <div className="text-center">
               <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-[#F5F5F5] flex items-center justify-center">

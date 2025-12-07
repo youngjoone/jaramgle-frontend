@@ -47,18 +47,6 @@ export default function MyBooks() {
     }
   };
 
-  if (isLoading) {
-    return <div className="p-6 text-sm text-[#757575]">내 동화책을 불러오는 중...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="p-6 text-sm text-red-500">
-        {error}
-      </div>
-    );
-  }
-
   return (
     <GalleryPage
       storybooks={ownedStorybooks}
@@ -66,6 +54,8 @@ export default function MyBooks() {
       onDelete={handleDelete}
       onNavigateToCreate={() => router.push('/create')}
       onViewStorybook={setViewingStorybook}
+      isLoading={isLoading}
+      error={error}
     />
   );
 }
