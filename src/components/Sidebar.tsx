@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Compass, Image as ImageIcon, Wand2, CreditCard, Settings } from 'lucide-react';
+import { Compass, Image as ImageIcon, Wand2, CreditCard, Settings, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ const navItems = [
   { id: 'library', href: '/library', icon: Compass, label: '도서관', requiresAuth: false },
   { id: 'create', href: '/create', icon: Wand2, label: '생성', requiresAuth: true },
   { id: 'my-books', href: '/my-books', icon: ImageIcon, label: '내 도서목록', requiresAuth: true },
+  { id: 'my-characters', href: '/my-characters', icon: Users, label: '내 캐릭터', requiresAuth: true },
 ];
 
 const bottomItems = [

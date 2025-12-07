@@ -264,12 +264,9 @@ export function CreatePage() {
     }
   };
 
-  // 캐릭터 팝업 관련 핸들러
+  // 캐릭터 목록 페이지로 이동
   const handleOpenCharacterPopup = () => {
-    setIsCharacterPopupOpen(true);
-    setUploadedImage(null);
-    setGeneratedCharacterImage(null);
-    setIsCharacterGenerating(false);
+    router.push('/my-characters');
   };
 
   const handleCloseCharacterPopup = () => {

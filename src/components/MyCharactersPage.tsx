@@ -1,25 +1,31 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import {Search, Heart, Share2, Trash2, X, Plus} from 'lucide-react';
+import { Search, Trash2, X, Plus, Sparkles, MessageCircle, Tag } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertPopup } from '@/components/ui/alert-popup';
-import { type Storybook } from '@/store';
+import { type Character } from '@/store';
 
-interface GalleryPageProps {
-  storybooks: Storybook[];
-  onToggleShare: (id: number) => void;
+interface MyCharactersPageProps {
+  characters: Character[];
   onDelete: (id: number) => void;
   onNavigateToCreate: () => void;
-  onViewStorybook: (storybook: Storybook) => void;
+  onViewCharacter?: (character: Character) => void;
   isLoading?: boolean;
   error?: string | null;
 }
 
-export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToCreate, onViewStorybook, isLoading = false, error = null }: GalleryPageProps) {
+export function MyCharactersPage({
+  characters,
+  onDelete,
+  onNavigateToCreate,
+  onViewCharacter,
+  isLoading = false,
+  error = null,
+}: MyCharactersPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -57,10 +63,11 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
     setSearchQuery('');
   };
 
-  // Filter storybooks by search query
-  const filteredStorybooks = storybooks.filter(book =>
-    book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    book.author.toLowerCase().includes(searchQuery.toLowerCase())
+  // Filter characters by search query
+  const filteredCharacters = characters.filter(character =>
+    character.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    character.personality.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    character.keywords.some(k => k.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -71,9 +78,9 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
       }`}>
         <div className="flex items-center justify-between w-full">
           <div className="min-w-0">
-            <h1 className="text-[var(--text-primary)] font-bold truncate">내 도서목록</h1>
+            <h1 className="text-[var(--text-primary)] font-bold truncate">내 캐릭터</h1>
             <p className="text-sm text-[var(--text-tertiary)] font-medium mt-0.5 hidden sm:block">
-              {storybooks.length}개의 동화책
+              {characters.length}개의 캐릭터
             </p>
           </div>
 
@@ -83,12 +90,12 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-tertiary)]" />
               <Input
                 type="text"
-                placeholder="내 동화책 검색..."
+                placeholder="캐릭터 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setSearchFocused(true)}
-                className="w-full bg-white border border-[var(--border)] text-[var(--text-primary)] text-sm placeholder:text-[var(--text-tertiary)] pl-12 pr-10 py-2.5 focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)] rounded-full"
-                aria-label="내 동화책 검색"
+                className="w-full bg-white border border-[var(--border)] text-[var(--text-primary)] text-sm placeholder:text-[var(--text-tertiary)] pl-12 pr-10 py-2.5 focus-visible:ring-2 focus-visible:ring-[#FFA726] focus-visible:border-[#FFA726] rounded-full"
+                aria-label="캐릭터 검색"
               />
               {searchQuery && (
                 <button
@@ -107,12 +114,12 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
                   <p className="text-sm font-medium text-[var(--text-secondary)]">검색 팁</p>
                   <ul className="space-y-2 text-xs text-[var(--text-tertiary)]">
                     <li className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
-                      동화책 제목으로 검색하세요
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FFA726]" />
+                      캐릭터 이름으로 검색하세요
                     </li>
                     <li className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
-                      작가 이름으로도 검색할 수 있어요
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FFA726]" />
+                      성격이나 키워드로도 검색할 수 있어요
                     </li>
                   </ul>
                 </div>
@@ -131,7 +138,7 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
               >
                 <Search className="w-5 h-5" />
                 {searchQuery && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#66BB6A] rounded-full" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#FFA726] rounded-full" />
                 )}
               </Button>
             ) : (
@@ -141,10 +148,10 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-tertiary)]" />
                     <Input
                       type="text"
-                      placeholder="내 동화책 검색..."
+                      placeholder="캐릭터 검색..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-white border border-[var(--border)] text-[var(--text-primary)] text-sm placeholder:text-[var(--text-tertiary)] pl-12 pr-10 py-2.5 focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)] rounded-full"
+                      className="w-full bg-white border border-[var(--border)] text-[var(--text-primary)] text-sm placeholder:text-[var(--text-tertiary)] pl-12 pr-10 py-2.5 focus-visible:ring-2 focus-visible:ring-[#FFA726] focus-visible:border-[#FFA726] rounded-full"
                       autoFocus
                     />
                     {searchQuery && (
@@ -171,12 +178,12 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
                   <p className="text-sm font-medium text-[var(--text-secondary)] mb-2">검색 팁</p>
                   <ul className="space-y-2 text-xs text-[var(--text-tertiary)]">
                     <li className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
-                      동화책 제목으로 검색하세요
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FFA726]" />
+                      캐릭터 이름으로 검색하세요
                     </li>
                     <li className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
-                      작가 이름으로도 검색할 수 있어요
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FFA726]" />
+                      성격이나 키워드로도 검색할 수 있어요
                     </li>
                   </ul>
                 </div>
@@ -187,10 +194,10 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
           {/* Create Button */}
           <Button
             onClick={onNavigateToCreate}
-            className="bg-[var(--primary)] text-white hover:bg-[var(--primary-dark)] hover:shadow-lg rounded-full px-4 md:px-6 font-semibold touch-target"
+            className="bg-gradient-to-r from-[#FFA726] to-[#F57C00] text-white hover:from-[#F57C00] hover:to-[#E65100] hover:shadow-lg rounded-full px-4 md:px-6 font-semibold touch-target"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">새로 만들기</span>
+            <span className="hidden sm:inline">캐릭터 만들기</span>
             <span className="sm:hidden">+</span>
           </Button>
         </div>
@@ -200,41 +207,44 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
       <div className="pt-24 px-4 md:px-6 pb-8 bg-[var(--background)] min-h-screen">
         {isLoading ? (
           <div className="flex items-center justify-center h-[calc(100vh-200px)] text-sm text-[#757575]">
-            내 동화책을 불러오는 중...
+            캐릭터를 불러오는 중...
           </div>
         ) : error ? (
           <div className="flex items-center justify-center h-[calc(100vh-200px)] text-sm text-red-500">
             {error}
           </div>
-        ) : storybooks.length === 0 ? (
+        ) : characters.length === 0 ? (
           <div className="flex items-center justify-center h-[calc(100vh-200px)]">
             <div className="text-center">
-              <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-[#F5F5F5] flex items-center justify-center">
-                <Search className="w-12 h-12 text-[#757575]" />
-              </div>
-              <h2 className="text-[#1A1A1A] font-bold mb-2">아직 동화책이 없습니다</h2>
-              <p className="text-[#757575] font-normal text-sm">첫 번째 동화책을 만들어보세요!</p>
+              <h2 className="text-[#1A1A1A] font-bold mb-2">아직 캐릭터가 없습니다</h2>
+              <p className="text-[#757575] font-normal text-sm mb-6">나만의 캐릭터를 만들어 동화책에 등장시켜보세요!</p>
+              <Button
+                onClick={onNavigateToCreate}
+                className="bg-gradient-to-r from-[#FFA726] to-[#F57C00] text-white hover:from-[#F57C00] hover:to-[#E65100] rounded-full px-6 font-semibold"
+              >
+                <Plus className="w-4 h-4" />
+                첫 캐릭터 만들기
+              </Button>
             </div>
           </div>
-        ) : filteredStorybooks.length === 0 ? (
+        ) : filteredCharacters.length === 0 ? (
           <div className="flex items-center justify-center h-[calc(100vh-200px)]">
             <div className="text-center">
-              <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-[#F1F8E9] flex items-center justify-center">
-                <Search className="w-12 h-12 text-[#66BB6A]" />
+              <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-[#FFF3E0] flex items-center justify-center">
+                <Search className="w-12 h-12 text-[#FFA726]" />
               </div>
-              <h2 className="text-[#424242] font-bold mb-2">일치하는 동화책이 없습니다</h2>
+              <h2 className="text-[#424242] font-bold mb-2">일치하는 캐릭터가 없습니다</h2>
               <p className="text-[#757575] font-normal text-sm">검색어를 변경해 보세요</p>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6">
-            {filteredStorybooks.map((storybook) => (
-              <GalleryCard
-                key={storybook.id}
-                storybook={storybook}
-                onToggleShare={onToggleShare}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
+            {filteredCharacters.map((character) => (
+              <CharacterCard
+                key={character.id}
+                character={character}
                 onDelete={onDelete}
-                onViewStorybook={onViewStorybook}
+                onView={onViewCharacter}
               />
             ))}
           </div>
@@ -244,71 +254,51 @@ export function GalleryPage({ storybooks, onToggleShare, onDelete, onNavigateToC
   );
 }
 
-interface GalleryCardProps {
-  storybook: Storybook;
-  onToggleShare: (id: number) => void;
+interface CharacterCardProps {
+  character: Character;
   onDelete: (id: number) => void;
-  onViewStorybook: (storybook: Storybook) => void;
+  onView?: (character: Character) => void;
 }
 
-function GalleryCard({ storybook, onToggleShare, onDelete, onViewStorybook }: GalleryCardProps) {
+function CharacterCard({ character, onDelete, onView }: CharacterCardProps) {
   const [showDeletePopup, setShowDeletePopup] = useState(false);
-  const [showSharePopup, setShowSharePopup] = useState(false);
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowDeletePopup(true);
   };
 
-  const handleShareClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowSharePopup(true);
-  };
-
   const confirmDelete = () => {
-    onDelete(storybook.id);
+    onDelete(character.id);
     setShowDeletePopup(false);
-  };
-
-  const confirmShare = () => {
-    onToggleShare(storybook.id);
-    setShowSharePopup(false);
   };
 
   return (
     <motion.div
-      className="group cursor-pointer bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_16px_rgba(102,187,106,0.2)] border border-[#E0E0E0] hover:border-[#66BB6A] transition-all duration-300 relative overflow-hidden rounded-xl"
+      className="group cursor-pointer bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_16px_rgba(255,167,38,0.2)] border border-[#E0E0E0] hover:border-[#FFA726] transition-all duration-300 relative overflow-hidden rounded-xl"
       whileHover={{ y: -6 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
-      onClick={() => onViewStorybook(storybook)}
+      onClick={() => onView?.(character)}
     >
       {/* Content */}
       <div className="relative">
         {/* Image Container */}
-        <div className="relative aspect-square overflow-hidden mb-3 rounded-lg">
-          <img
-            src={storybook.imageUrl}
-            alt={storybook.title}
-            className="w-full h-full object-cover"
-          />
+        <div className="relative aspect-square overflow-hidden mb-4 rounded-lg">
+          {character.imageUrl ? (
+            <img
+              src={character.imageUrl}
+              alt={character.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-[#FFF3E0] to-[#FFE0B2] flex items-center justify-center">
+              <Sparkles className="w-16 h-16 text-[#FFA726]" />
+            </div>
+          )}
 
-          {/* Hover Overlay with Actions - Always visible on mobile/tablet, hover on desktop (1920px+) */}
+          {/* Hover Overlay with Actions */}
           <div className="absolute inset-0 bg-gradient-to-t from-[#424242]/90 via-transparent to-transparent opacity-100 min-[1920px]:opacity-0 min-[1920px]:group-hover:opacity-100 transition-opacity duration-300">
-            <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleShareClick}
-                className={`gap-2 rounded-full px-4 backdrop-blur-md border ${
-                  storybook.isShared
-                    ? 'bg-[#66BB6A] text-white hover:bg-[#388E3C] border-white/20 shadow-[0_4px_16px_rgba(102,187,106,0.3)]'
-                    : 'bg-white/90 text-[#66BB6A] hover:bg-white hover:text-[#388E3C] border-white/40 shadow-[0_4px_16px_rgba(255,255,255,0.4)]'
-                } font-semibold`}
-              >
-                <Share2 className="w-4 h-4" />
-                <span className="text-sm">{storybook.isShared ? '공유됨' : '공유하기'}</span>
-              </Button>
-
+            <div className="absolute bottom-4 left-4 right-4 flex items-center justify-end">
               <Button
                 variant="ghost"
                 size="icon"
@@ -322,31 +312,51 @@ function GalleryCard({ storybook, onToggleShare, onDelete, onViewStorybook }: Ga
         </div>
 
         {/* Info Section */}
-        <div className="space-y-2 px-1">
-          {/* Title */}
-          <h3 className="text-[#424242] font-semibold line-clamp-1">{storybook.title}</h3>
+        <div className="space-y-3 px-1">
+          {/* Name */}
+          <h3 className="text-[#424242] font-semibold text-lg line-clamp-1">{character.name}</h3>
 
-          {/* Author */}
-          <p className="text-sm text-[#757575] font-normal">작가 {storybook.author}</p>
+          {/* Personality */}
+          {character.personality && (
+            <div className="flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-[#FFA726] mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-[#757575] line-clamp-2">{character.personality}</p>
+            </div>
+          )}
 
-          {/* Categories */}
-          <div className="flex flex-wrap gap-1.5">
-            {storybook.categories.map((category, index) => (
-              <Badge
-                key={index}
-                variant="outline"
-                className="bg-[#F1F8E9] border border-[#66BB6A]/30 text-[#66BB6A] text-xs px-2 py-0.5 font-medium"
-              >
-                {category}
-              </Badge>
-            ))}
-          </div>
+          {/* Keywords */}
+          {character.keywords.length > 0 && (
+            <div className="flex items-start gap-2">
+              <Tag className="w-4 h-4 text-[#FFA726] mt-0.5 flex-shrink-0" />
+              <div className="flex flex-wrap gap-1.5">
+                {character.keywords.slice(0, 4).map((keyword, index) => (
+                  <Badge
+                    key={index}
+                    variant="outline"
+                    className="bg-[#FFF3E0] border border-[#FFA726]/30 text-[#F57C00] text-xs px-2 py-0.5 font-medium"
+                  >
+                    {keyword}
+                  </Badge>
+                ))}
+                {character.keywords.length > 4 && (
+                  <Badge
+                    variant="outline"
+                    className="bg-[#F5F5F5] border border-[#E0E0E0] text-[#757575] text-xs px-2 py-0.5 font-medium"
+                  >
+                    +{character.keywords.length - 4}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
 
-          {/* Likes - Only show if shared */}
-          {storybook.isShared && (
-            <div className="flex items-center gap-1.5 text-[#757575] pt-1">
-              <Heart className="w-4 h-4" />
-              <span className="text-sm font-medium">{storybook.likes.toLocaleString()} 좋아요</span>
+          {/* Dialogues Preview */}
+          {character.dialogues.length > 0 && (
+            <div className="flex items-start gap-2">
+              <MessageCircle className="w-4 h-4 text-[#FFA726] mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-[#757575] italic line-clamp-1">
+                "{character.dialogues[0]}"
+              </p>
             </div>
           )}
         </div>
@@ -357,26 +367,10 @@ function GalleryCard({ storybook, onToggleShare, onDelete, onViewStorybook }: Ga
         isOpen={showDeletePopup}
         onClose={() => setShowDeletePopup(false)}
         onConfirm={confirmDelete}
-        title="동화책 삭제"
-        description={`"${storybook.title}"을(를) 정말 삭제하시겠습니까? 삭제된 동화책은 복구할 수 없습니다.`}
+        title="캐릭터 삭제"
+        description={`"${character.name}"을(를) 정말 삭제하시겠습니까? 삭제된 캐릭터는 복구할 수 없습니다.`}
         type="warning"
         confirmText="삭제"
-        cancelText="취소"
-      />
-
-      {/* Share Confirmation Popup */}
-      <AlertPopup
-        isOpen={showSharePopup}
-        onClose={() => setShowSharePopup(false)}
-        onConfirm={confirmShare}
-        title={storybook.isShared ? "공유 해제" : "동화책 공유"}
-        description={
-          storybook.isShared
-            ? `"${storybook.title}"의 공유를 해제하시겠습니까? 도서관에서 더 이상 다른 사용자들이 볼 수 없게 됩니다.`
-            : `"${storybook.title}"을(를) 도서관에 공유하시겠습니까? 다른 사용자들이 이 동화책을 볼 수 있게 됩니다.`
-        }
-        type="info"
-        confirmText={storybook.isShared ? "공유 해제" : "공유하기"}
         cancelText="취소"
       />
     </motion.div>
