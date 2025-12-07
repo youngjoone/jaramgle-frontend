@@ -194,7 +194,7 @@ export function MyCharactersPage({
           {/* Create Button */}
           <Button
             onClick={onNavigateToCreate}
-            className="bg-gradient-to-r from-[#FFA726] to-[#F57C00] text-white hover:from-[#F57C00] hover:to-[#E65100] hover:shadow-lg rounded-full px-4 md:px-6 font-semibold touch-target"
+            className="bg-[#FFA726] text-white hover:bg-[#F57C00] hover:shadow-lg rounded-full px-4 md:px-6 font-semibold touch-target"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">캐릭터 만들기</span>
@@ -220,7 +220,7 @@ export function MyCharactersPage({
               <p className="text-[#757575] font-normal text-sm mb-6">나만의 캐릭터를 만들어 동화책에 등장시켜보세요!</p>
               <Button
                 onClick={onNavigateToCreate}
-                className="bg-gradient-to-r from-[#FFA726] to-[#F57C00] text-white hover:from-[#F57C00] hover:to-[#E65100] rounded-full px-6 font-semibold"
+                className="bg-[#FFA726] text-white hover:bg-[#F57C00] rounded-full px-6 font-semibold"
               >
                 <Plus className="w-4 h-4" />
                 첫 캐릭터 만들기

@@ -255,7 +255,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
             className={`bg-white rounded-2xl p-4 shadow-sm border transition-all border-[#E0E0E0]`}
           >
             <div className="flex items-center gap-2 mb-3">
-              <User className={`w-4 h-4 ${hasAttemptedSubmit && !hasImage ? 'text-red-400' : 'text-[#66BB6A]'}`} />
+              <User className={`w-4 h-4 ${hasAttemptedSubmit && !hasImage ? 'text-red-400' : 'text-[#FFA726]'}`} />
               <h3 className="text-[#424242] font-semibold text-sm">바꿀 이미지</h3>
               <span className="text-red-400 text-xs">*</span>
             </div>
@@ -278,10 +278,10 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
               onDrop={handleDrop}
               className={`aspect-square max-w-[280px] mx-auto rounded-xl overflow-hidden cursor-pointer transition-all relative group ${
                 isDragging
-                  ? 'bg-[#66BB6A]/10 border-2 border-[#66BB6A]'
+                  ? 'bg-[#FFA726]/10 border-2 border-[#FFA726]'
                   : hasAttemptedSubmit && !hasImage
                     ? 'bg-red-50 border-2 border-dashed border-red-400'
-                    : 'bg-[#FAFAFA] border-2 border-dashed border-[#E0E0E0] hover:border-[#66BB6A]/50'
+                    : 'bg-[#FAFAFA] border-2 border-dashed border-[#E0E0E0] hover:border-[#FFA726]/50'
               }`}
             >
               {imagePreview ? (
@@ -299,10 +299,10 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 ${
-                    hasAttemptedSubmit && !hasImage ? 'bg-red-100' : 'bg-[#66BB6A]/10'
+                    hasAttemptedSubmit && !hasImage ? 'bg-red-100' : 'bg-[#FFA726]/10'
                   }`}>
                     <Upload className={`w-6 h-6 ${
-                      isDragging ? 'text-[#388E3C]' : hasAttemptedSubmit && !hasImage ? 'text-red-400' : 'text-[#66BB6A]'
+                      isDragging ? 'text-[#F57C00]' : hasAttemptedSubmit && !hasImage ? 'text-red-400' : 'text-[#FFA726]'
                     }`} />
                   </div>
                   <p className={`text-sm font-medium ${hasAttemptedSubmit && !hasImage ? 'text-red-400' : 'text-[#757575]'}`}>
@@ -330,7 +330,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
           {/* Name Input Section */}
           <div ref={nameInputRef} className="bg-white rounded-2xl p-4 shadow-sm border border-[#E0E0E0]">
             <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-[#66BB6A]" />
+              <Sparkles className="w-4 h-4 text-[#FFA726]" />
               <h3 className="text-[#424242] font-semibold text-sm">캐릭터 이름</h3>
               <span className="text-red-400 text-xs">*</span>
             </div>
@@ -340,7 +340,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
               className={`h-11 rounded-xl bg-white transition-all ${
                 hasAttemptedSubmit && errors.name
                   ? 'border-red-400 focus-visible:ring-red-400/30 focus-visible:border-red-400'
-                  : 'border border-[#E0E0E0] focus-visible:ring-2 focus-visible:ring-[#66BB6A]/30 focus-visible:border-[#66BB6A] hover:border-[#66BB6A]/50'
+                  : 'border border-[#E0E0E0] focus-visible:ring-2 focus-visible:ring-[#FFA726]/30 focus-visible:border-[#FFA726] hover:border-[#FFA726]/50'
               }`}
             />
             <AnimatePresence>
@@ -361,13 +361,13 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
           {/* Personality Section */}
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#E0E0E0]">
             <div className="flex items-center gap-2 mb-3">
-              <Heart className="w-4 h-4 text-[#66BB6A]" />
+              <Heart className="w-4 h-4 text-[#FFA726]" />
               <h3 className="text-[#424242] font-semibold text-sm">성격</h3>
             </div>
             <Textarea
               {...register('personality')}
               placeholder="캐릭터의 성격을 설명해주세요..."
-              className="min-h-[80px] rounded-md border border-[#E0E0E0] bg-white resize-none focus-visible:ring-2 focus-visible:ring-[#66BB6A]/30 focus-visible:border-[#66BB6A] hover:border-[#66BB6A]/50 transition-all text-sm"
+              className="min-h-[80px] rounded-md border border-[#E0E0E0] bg-white resize-none focus-visible:ring-2 focus-visible:ring-[#FFA726]/30 focus-visible:border-[#FFA726] hover:border-[#FFA726]/50 transition-all text-sm"
             />
             <div className="mt-2">
               <p className="text-xs text-[#9E9E9E] mb-1.5">빠른 선택:</p>
@@ -377,7 +377,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
                     key={index}
                     type="button"
                     onClick={() => setValue('personality', example)}
-                    className="text-xs text-[#388E3C] bg-[#66BB6A]/10 px-2.5 py-1.5 rounded-full hover:bg-[#66BB6A]/20 transition-all border border-[#66BB6A]/20"
+                    className="text-xs text-[#F57C00] bg-[#FFA726]/10 px-2.5 py-1.5 rounded-full hover:bg-[#FFA726]/20 transition-all border border-[#FFA726]/20"
                   >
                     {example.length > 20 ? example.slice(0, 20) + '...' : example}
                   </button>
@@ -390,7 +390,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#E0E0E0]">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-[#66BB6A]" />
+                <Tag className="w-4 h-4 text-[#FFA726]" />
                 <h3 className="text-[#424242] font-semibold text-sm">키워드</h3>
               </div>
               <span className="text-xs text-[#9E9E9E]">{keywords.length}/8</span>
@@ -403,13 +403,13 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
                 onChange={(e) => setNewKeyword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
                 placeholder="키워드 입력..."
-                className="flex-1 h-10 rounded-lg border border-[#E0E0E0] bg-white focus-visible:ring-2 focus-visible:ring-[#66BB6A]/30 focus-visible:border-[#66BB6A] hover:border-[#66BB6A]/50 transition-all text-sm"
+                className="flex-1 h-10 rounded-lg border border-[#E0E0E0] bg-white focus-visible:ring-2 focus-visible:ring-[#FFA726]/30 focus-visible:border-[#FFA726] hover:border-[#FFA726]/50 transition-all text-sm"
               />
               <Button
                 type="button"
                 onClick={addKeyword}
                 disabled={!newKeyword.trim() || keywords.length >= 8}
-                className="h-10 w-10 rounded-lg bg-[#66BB6A] hover:bg-[#388E3C] text-white"
+                className="h-10 w-10 rounded-lg bg-[#FFA726] hover:bg-[#F57C00] text-white"
               >
                 <Plus className="w-4 h-4" />
               </Button>
@@ -419,12 +419,12 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
             {keywords.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {keywords.map((keyword) => (
-                  <Badge key={keyword} className="bg-[#66BB6A]/10 text-[#388E3C] border border-[#66BB6A]/30 px-2 py-1 text-xs rounded-full">
+                  <Badge key={keyword} className="bg-[#FFA726]/10 text-[#F57C00] border border-[#FFA726]/30 px-2 py-1 text-xs rounded-full">
                     {keyword}
                     <button
                       type="button"
                       onClick={() => removeKeyword(keyword)}
-                      className="ml-1.5 hover:bg-[#66BB6A]/20 rounded-full transition-colors"
+                      className="ml-1.5 hover:bg-[#FFA726]/20 rounded-full transition-colors"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -443,7 +443,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
                     type="button"
                     onClick={() => addKeywordFromExample(keyword)}
                     disabled={keywords.length >= 8}
-                    className="text-xs text-[#757575] bg-[#F5F5F5] px-2 py-1 rounded-full hover:bg-[#66BB6A]/10 hover:text-[#388E3C] transition-all border border-[#E0E0E0] hover:border-[#66BB6A]/30 disabled:opacity-50"
+                    className="text-xs text-[#757575] bg-[#F5F5F5] px-2 py-1 rounded-full hover:bg-[#FFA726]/10 hover:text-[#F57C00] transition-all border border-[#E0E0E0] hover:border-[#FFA726]/30 disabled:opacity-50"
                   >
                     + {keyword}
                   </button>
@@ -456,7 +456,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#E0E0E0]">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <MessageCircle className="w-4 h-4 text-[#66BB6A]" />
+                <MessageCircle className="w-4 h-4 text-[#FFA726]" />
                 <h3 className="text-[#424242] font-semibold text-sm">대사</h3>
               </div>
               <span className="text-xs text-[#9E9E9E]">{dialogues.length}/5</span>
@@ -469,13 +469,13 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
                 onChange={(e) => setNewDialogue(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addDialogue())}
                 placeholder="캐릭터의 대사를 입력..."
-                className="flex-1 h-10 rounded-lg border border-[#E0E0E0] bg-white focus-visible:ring-2 focus-visible:ring-[#66BB6A]/30 focus-visible:border-[#66BB6A] hover:border-[#66BB6A]/50 transition-all text-sm"
+                className="flex-1 h-10 rounded-lg border border-[#E0E0E0] bg-white focus-visible:ring-2 focus-visible:ring-[#FFA726]/30 focus-visible:border-[#FFA726] hover:border-[#FFA726]/50 transition-all text-sm"
               />
               <Button
                 type="button"
                 onClick={addDialogue}
                 disabled={!newDialogue.trim() || dialogues.length >= 5}
-                className="h-10 w-10 rounded-lg bg-[#66BB6A] hover:bg-[#388E3C] text-white"
+                className="h-10 w-10 rounded-lg bg-[#FFA726] hover:bg-[#F57C00] text-white"
               >
                 <Plus className="w-4 h-4" />
               </Button>
@@ -487,7 +487,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
                 {dialogues.map((dialogue) => (
                   <div
                     key={dialogue}
-                    className="relative bg-[#66BB6A]/10 rounded-lg rounded-tl-sm p-2.5 pr-8 group border border-[#66BB6A]/20"
+                    className="relative bg-[#FFA726]/10 rounded-lg rounded-tl-sm p-2.5 pr-8 group border border-[#FFA726]/20"
                   >
                     <p className="text-xs text-[#424242]">"{dialogue}"</p>
                     <button
@@ -512,7 +512,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
                     type="button"
                     onClick={() => addDialogueFromExample(dialogue)}
                     disabled={dialogues.length >= 5}
-                    className="block w-full text-left text-xs text-[#757575] bg-[#F5F5F5] px-2.5 py-1.5 rounded-lg hover:bg-[#66BB6A]/10 hover:text-[#388E3C] transition-all border border-[#E0E0E0] hover:border-[#66BB6A]/30 disabled:opacity-50"
+                    className="block w-full text-left text-xs text-[#757575] bg-[#F5F5F5] px-2.5 py-1.5 rounded-lg hover:bg-[#FFA726]/10 hover:text-[#F57C00] transition-all border border-[#E0E0E0] hover:border-[#FFA726]/30 disabled:opacity-50"
                   >
                     "{dialogue}"
                   </button>
@@ -533,7 +533,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
             className={`w-full h-12 rounded-xl font-semibold transition-all duration-300 border-0 ${
               hasAttemptedSubmit && (!isValid || !hasImage)
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
-                : 'bg-gradient-to-r from-[#66BB6A] via-[#81C784] to-[#388E3C] hover:from-[#388E3C] hover:via-[#2E7D32] hover:to-[#1B5E20] text-white shadow-[0_4px_16px_rgba(102,187,106,0.3)]'
+                : 'bg-[#FFA726] hover:bg-[#F57C00] text-white shadow-[0_4px_16px_rgba(255,167,38,0.3)]'
             }`}
           >
             {isSubmitting ? (
