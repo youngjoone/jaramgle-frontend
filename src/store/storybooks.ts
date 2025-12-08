@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { apiFetch, BACKEND_ORIGIN } from '@/lib/api';
+import { useAuthStore } from './auth';
 
 export interface Storybook {
   id: number;
@@ -145,10 +146,12 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       createdAt?: string;
     }>>("/stories");
 
+    const currentUserName = useAuthStore.getState().user?.name || "나";
+
     const mapped: Storybook[] = stories.map((s) => ({
       id: s.id,
       title: s.title || "제목 없음",
-      author: "나",
+      author: currentUserName,
       imageUrl: normalizeImage(s.coverImageUrl || (s as any).cover_image_url),
       categories: s.topics || [],
       likes: 0,
