@@ -10,6 +10,7 @@ export interface Storybook {
   author: string;
   categories: string[];
   likes: number;
+  likedByMe?: boolean;
   isBookmarked: boolean;
   isShared: boolean;
   isOwned: boolean;
@@ -22,7 +23,7 @@ interface StorybooksState {
   storybooks: Storybook[];
   viewingStorybook: Storybook | null;
   toggleBookmark: (id: number) => void;
-  toggleLike: (id: number) => void;
+  toggleLike: (params: { id?: number; shareSlug?: string | null }) => Promise<void>;
   toggleShare: (id: number) => Promise<void>;
   deleteStorybook: (id: number) => Promise<void>;
   setViewingStorybook: (storybook: Storybook | null) => void;
@@ -41,11 +42,51 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       book.id === id ? { ...book, isBookmarked: !book.isBookmarked } : book
     )
   })),
-  toggleLike: (id) => set((state) => ({
-    storybooks: state.storybooks.map(book =>
-      book.id === id ? { ...book, likes: book.likes + 1 } : book
-    )
-  })),
+  toggleLike: async ({ id, shareSlug }) => {
+    // 좋아요는 공유된 동화(slug 기준)에서만 지원
+    const slug = shareSlug || get().storybooks.find((b) => b.id === id)?.shareSlug;
+    if (!slug) return;
+
+    const toSafeLikes = (val: unknown) => {
+      const num = Number(val);
+      return Number.isFinite(num) ? num : 0;
+    };
+    // 낙관적 업데이트
+    set((state) => ({
+      storybooks: state.storybooks.map((book) => {
+        if (book.shareSlug !== slug) return book;
+        const nextLiked = !book.likedByMe;
+        const baseLikes = toSafeLikes(book.likes);
+        const nextCount = Math.max(0, baseLikes + (nextLiked ? 1 : -1));
+        return { ...book, likedByMe: nextLiked, likes: nextCount };
+      })
+    }));
+
+    try {
+      const resp = await apiFetch<{ likeCount: number; liked: boolean }>(`/public/shared-stories/${slug}/likes`, {
+        method: "POST",
+      });
+      const safeResp = toSafeLikes(resp.likeCount);
+      set((state) => ({
+        storybooks: state.storybooks.map((book) =>
+          book.shareSlug === slug
+            ? {
+                ...book,
+                likedByMe: resp.liked,
+                // 서버가 0을 돌려도 증가 상태를 덮어쓰지 않도록 방향에 맞춰 보정
+                likes: resp.liked
+                  ? Math.max(toSafeLikes(book.likes), safeResp)
+                  : Math.min(toSafeLikes(book.likes), safeResp),
+              }
+            : book
+        )
+      }));
+    } catch (err) {
+      console.error("좋아요 토글 실패", err);
+      // 실패해도 UI는 낙관적 상태 유지, 콘솔에만 남김
+      throw err;
+    }
+  },
   toggleShare: async (id) => {
     try {
       if (!id || id <= 0) return; // 공유 피드 전용 카드(id 없음)는 무시
@@ -111,11 +152,41 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       imageUrl: normalizeImage(s.coverImageUrl || (s as any).cover_image_url),
       categories: s.topics || [],
       likes: 0,
+      likedByMe: false,
       isBookmarked: false,
       isShared: !!(s.shareSlug || (s as any).share_slug),
       shareSlug: s.shareSlug || (s as any).share_slug,
       isOwned: true,
     }));
+
+    // 공유된 내 동화는 공개 피드 요약과 동기화해 좋아요/내 좋아요 여부 반영
+    const sharedSummaries = await apiFetch<Array<{
+      shareSlug: string;
+      share_slug?: string;
+      likeCount: number;
+      like_count?: number;
+      likedByCurrentUser?: boolean;
+      liked_by_current_user?: boolean;
+    }>>("/public/shared-stories");
+
+    if (sharedSummaries && sharedSummaries.length > 0) {
+      const metaMap = new Map<string, { likes: number; likedByMe: boolean }>();
+      sharedSummaries.forEach((s) => {
+        const slug = s.shareSlug || (s as any).share_slug;
+        if (!slug) return;
+        const likes = Number(s.likeCount ?? (s as any).like_count) || 0;
+        const liked = !!(s.likedByCurrentUser ?? (s as any).liked_by_current_user);
+        metaMap.set(slug, { likes, likedByMe: liked });
+      });
+      mapped.forEach((m) => {
+        if (m.shareSlug && metaMap.has(m.shareSlug)) {
+          const meta = metaMap.get(m.shareSlug)!;
+          m.likes = meta.likes;
+          m.likedByMe = meta.likedByMe;
+        }
+      });
+    }
+
     set({ storybooks: mapped });
   },
   loadSharedStories: async () => {
@@ -131,6 +202,8 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       shared_at: string;
       preview: string;
       like_count: number;
+      liked_by_current_user?: boolean;
+      likedByCurrentUser?: boolean;
       comment_count: number;
       cover_image_url?: string | null;
     }>>("/public/shared-stories");
@@ -142,6 +215,7 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       imageUrl: normalizeImage(s.cover_image_url),
       categories: [],
       likes: Number(s.like_count) || 0,
+      likedByMe: !!(s.liked_by_current_user ?? s.likedByCurrentUser),
       isBookmarked: false,
       isShared: true,
       shareSlug: s.share_slug,

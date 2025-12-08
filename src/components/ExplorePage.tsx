@@ -16,7 +16,7 @@ import { type Storybook } from '@/store';
 interface ExplorePageProps {
   storybooks: Storybook[];
   onToggleBookmark: (id: number) => void;
-  onToggleLike: (id: number) => void;
+  onToggleLike: (params: { id?: number; shareSlug?: string | null }) => void;
   onViewStorybook: (storybook: Storybook) => void;
   isLoading?: boolean;
   error?: string | null;
@@ -378,7 +378,7 @@ export function ExplorePage({ storybooks, onToggleBookmark, onToggleLike, onView
 interface StorybookCardProps {
   storybook: Storybook;
   onToggleBookmark: (id: number) => void;
-  onToggleLike: (id: number) => void;
+  onToggleLike: (params: { id?: number; shareSlug?: string | null }) => void;
   onViewStorybook: (storybook: Storybook) => void;
 }
 
@@ -427,13 +427,13 @@ function StorybookCard({ storybook, onToggleBookmark, onToggleLike, onViewStoryb
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (!storybook.id) return;
-                onToggleLike(storybook.id);
+                if (!storybook.shareSlug) return;
+                onToggleLike({ id: storybook.id, shareSlug: storybook.shareSlug });
               }}
               className="flex items-center gap-1.5 text-[#757575] hover:text-[#66BB6A] transition-colors"
             >
-              <Heart className="w-4 h-4" />
-              <span className="text-sm">{storybook.likes.toLocaleString()}</span>
+              <Heart className={`w-4 h-4 ${storybook.likedByMe ? 'fill-[#66BB6A] text-[#66BB6A]' : ''}`} />
+              <span className="text-sm">{Number(storybook.likes ?? 0).toLocaleString()}</span>
             </button>
 
             <Button

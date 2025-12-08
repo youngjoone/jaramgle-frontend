@@ -31,7 +31,7 @@ export default function Library() {
     <ExplorePage
       storybooks={storybooks}
       onToggleBookmark={toggleBookmark}
-      onToggleLike={toggleLike}
+      onToggleLike={(params) => toggleLike(params)}
       onViewStorybook={setViewingStorybook}
       isLoading={isLoading}
       error={error}
