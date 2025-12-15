@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef, useMemo } from 'react';
-import { ArrowLeft, Sparkles, Plus, X, Tag, MessageCircle, Upload, User, Heart, Wand2 } from 'lucide-react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { ArrowLeft, Sparkles, Plus, X, MessageCircle, Upload, User, Heart, Wand2, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,16 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  PERSONALITY_EXAMPLES,
-  KEYWORD_EXAMPLES,
-  DIALOGUE_EXAMPLES,
-} from '@/store';
+import { PERSONALITY_EXAMPLES, DIALOGUE_EXAMPLES } from '@/store';
 
 // Zod schema for form validation
 const characterSchema = z.object({
   name: z.string().min(1, '캐릭터 이름을 입력해주세요'),
   personality: z.string().optional(),
+  dialogueInput: z.string().max(80, '대사는 80자 이내로 입력해주세요').optional(),
+  visualHint: z.string().max(200, '외형/추가 요청은 200자 이내로 입력해주세요').optional(),
 });
 
 type CharacterFormData = z.infer<typeof characterSchema>;
@@ -29,19 +27,30 @@ interface CharacterCreatePageProps {
   onSubmit: (character: {
     name: string;
     personality: string;
-    keywords: string[];
+    dialogues: string[];
+    imageFile: File | null;
+    imagePreview: string | null;
+    visualHint: string;
+    artStyle: string;
+  }) => Promise<void>;
+  initialCharacter?: {
+    name: string;
+    personality: string;
     dialogues: string[];
     imageUrl: string | null;
-  }) => Promise<void>;
+    visualHint?: string;
+    artStyle?: string;
+  };
+  mode?: 'create' | 'edit';
 }
 
-export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePageProps) {
-  const [keywords, setKeywords] = useState<string[]>([]);
-  const [newKeyword, setNewKeyword] = useState('');
+export function CharacterCreatePage({ onBack, onSubmit, initialCharacter, mode = 'create' }: CharacterCreatePageProps) {
+  const isEdit = mode === 'edit';
   const [dialogues, setDialogues] = useState<string[]>([]);
   const [newDialogue, setNewDialogue] = useState('');
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(initialCharacter?.imageUrl || null);
+  const [artStyle, setArtStyle] = useState(initialCharacter?.artStyle || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
@@ -61,13 +70,23 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
     resolver: zodResolver(characterSchema),
     mode: 'onChange',
     defaultValues: {
-      name: '',
-      personality: '',
+      name: initialCharacter?.name || '',
+      personality: initialCharacter?.personality || '',
+      visualHint: initialCharacter?.visualHint || '',
     },
   });
 
   const watchedName = watch('name');
   const watchedPersonality = watch('personality');
+  const watchedVisualHint = watch('visualHint');
+
+  // hydrate initial dialogues
+  useEffect(() => {
+    if (initialCharacter?.dialogues?.length) {
+      setDialogues([initialCharacter.dialogues[0]]);
+      setNewDialogue(initialCharacter.dialogues[0]);
+    }
+  }, [initialCharacter]);
 
   // Calculate progress
   const progress = useMemo(() => {
@@ -75,41 +94,32 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
     if (watchedName?.trim()) completed += 25;
     if (imagePreview) completed += 25;
     if (watchedPersonality?.trim()) completed += 20;
-    if (keywords.length > 0) completed += 15;
-    if (dialogues.length > 0) completed += 15;
-    return completed;
-  }, [watchedName, imagePreview, watchedPersonality, keywords.length, dialogues.length]);
-
-  // Add keyword
-  const addKeyword = () => {
-    if (newKeyword.trim() && !keywords.includes(newKeyword.trim()) && keywords.length < 8) {
-      setKeywords([...keywords, newKeyword.trim()]);
-      setNewKeyword('');
-    }
-  };
-
-  const addKeywordFromExample = (keyword: string) => {
-    if (!keywords.includes(keyword) && keywords.length < 8) {
-      setKeywords([...keywords, keyword]);
-    }
-  };
-
-  const removeKeyword = (keyword: string) => {
-    setKeywords(keywords.filter(k => k !== keyword));
-  };
+    if (watchedVisualHint?.trim()) completed += 10;
+    if (dialogues.length > 0) completed += 8;
+    return Math.min(100, completed);
+  }, [watchedName, imagePreview, watchedPersonality, watchedVisualHint, dialogues.length]);
 
   // Add dialogue
   const addDialogue = () => {
-    if (newDialogue.trim() && !dialogues.includes(newDialogue.trim()) && dialogues.length < 5) {
-      setDialogues([...dialogues, newDialogue.trim()]);
-      setNewDialogue('');
+    const trimmed = newDialogue.trim();
+    if (!trimmed) return;
+    if (trimmed.length > 80) {
+      alert('대사는 80자 이내로 입력해주세요.');
+      return;
     }
+    // 대사는 하나만 유지
+    setDialogues([trimmed]);
+    setNewDialogue(trimmed);
   };
 
   const addDialogueFromExample = (dialogue: string) => {
-    if (!dialogues.includes(dialogue) && dialogues.length < 5) {
-      setDialogues([...dialogues, dialogue]);
+    if (!dialogue) return;
+    if (dialogue.length > 80) {
+      alert('대사 예시는 80자 이내로 선택해주세요.');
+      return;
     }
+    // 대사는 하나만 유지
+    setDialogues([dialogue]);
   };
 
   const removeDialogue = (dialogue: string) => {
@@ -127,7 +137,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
       setImagePreview(dataUrl);
-      setImageUrl(dataUrl);
+      setImageFile(file);
     };
     reader.readAsDataURL(file);
   }, []);
@@ -142,23 +152,27 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
 
   // Handle drag events
   const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (isEdit) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
-  }, []);
+  }, [isEdit]);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (isEdit) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-  }, []);
+  }, [isEdit]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (isEdit) return;
     e.preventDefault();
     e.stopPropagation();
-  }, []);
+  }, [isEdit]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
+    if (isEdit) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
@@ -167,18 +181,19 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
     if (file) {
       processFile(file);
     }
-  }, [processFile]);
+  }, [processFile, isEdit]);
 
   // Handle click on drop zone
   const handleDropZoneClick = () => {
+    if (isEdit) return; // editing: 이미지 변경 불가
     fileInputRef.current?.click();
   };
 
   // Remove image
   const handleRemoveImage = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setImagePreview(null);
-    setImageUrl(null);
+    setImagePreview(initialCharacter?.imageUrl || null);
+    setImageFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -191,9 +206,11 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
       await onSubmit({
         name: data.name.trim(),
         personality: data.personality?.trim() || '',
-        keywords,
         dialogues,
-        imageUrl,
+        imageFile,
+        imagePreview,
+        visualHint: data.visualHint?.trim() || '',
+        artStyle,
       });
     } catch (err) {
       console.error('캐릭터 생성 실패:', err);
@@ -211,8 +228,8 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
     setHasAttemptedSubmit(true);
     const isFormValid = await trigger();
 
-    // Check image first, then name
-    if (!hasImage) {
+    const requireImage = mode === 'create';
+    if (requireImage && !hasImage) {
       imageInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
@@ -239,10 +256,10 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
             >
               <ArrowLeft className="w-4 h-4 text-[#757575]" />
             </Button>
-            <h1 className="text-[#1A1A1A] font-bold text-lg">새 캐릭터 만들기</h1>
+            <h1 className="text-[#1A1A1A] font-bold text-lg">{isEdit ? '캐릭터 수정' : '새 캐릭터 만들기'}</h1>
           </div>
           <p className="text-[#757575] text-sm">
-            나만의 특별한 캐릭터를 만들어보세요
+            {isEdit ? '이미지는 그대로 두고 정보만 수정할 수 있어요' : '나만의 특별한 캐릭터를 만들어보세요'}
           </p>
         </div>
 
@@ -267,6 +284,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
               accept="image/*"
               onChange={handleImageUpload}
               className="hidden"
+              disabled={isEdit}
             />
 
             {/* Image Upload Area */}
@@ -276,12 +294,14 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
               onDragLeave={handleDragLeave}
               onDragOver={handleDragOver}
               onDrop={handleDrop}
-              className={`aspect-square max-w-[280px] mx-auto rounded-xl overflow-hidden cursor-pointer transition-all relative group ${
-                isDragging
-                  ? 'bg-[#FFA726]/10 border-2 border-[#FFA726]'
-                  : hasAttemptedSubmit && !hasImage
-                    ? 'bg-red-50 border-2 border-dashed border-red-400'
-                    : 'bg-[#FAFAFA] border-2 border-dashed border-[#E0E0E0] hover:border-[#FFA726]/50'
+              className={`aspect-square max-w-[280px] mx-auto rounded-xl overflow-hidden transition-all relative group ${
+                isEdit
+                  ? 'bg-[#FAFAFA] border-2 border-[#E0E0E0] cursor-not-allowed'
+                  : isDragging
+                    ? 'bg-[#FFA726]/10 border-2 border-[#FFA726] cursor-pointer'
+                    : hasAttemptedSubmit && !hasImage
+                      ? 'bg-red-50 border-2 border-dashed border-red-400 cursor-pointer'
+                      : 'bg-[#FAFAFA] border-2 border-dashed border-[#E0E0E0] hover:border-[#FFA726]/50 cursor-pointer'
               }`}
             >
               {imagePreview ? (
@@ -291,10 +311,12 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
                     alt="바꿀 이미지"
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2">
-                    <Upload className="w-6 h-6 text-white" />
-                    <p className="text-white text-xs font-medium">변경</p>
-                  </div>
+                  {!isEdit && (
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2">
+                      <Upload className="w-6 h-6 text-white" />
+                      <p className="text-white text-xs font-medium">변경</p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
@@ -386,67 +408,38 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
             </div>
           </div>
 
-          {/* Keywords Section */}
+          {/* Visual / Extra Request Section */}
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#E0E0E0]">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-[#FFA726]" />
-                <h3 className="text-[#424242] font-semibold text-sm">키워드</h3>
-              </div>
-              <span className="text-xs text-[#9E9E9E]">{keywords.length}/8</span>
+            <div className="flex items-center gap-2 mb-3">
+              <Palette className="w-4 h-4 text-[#FFA726]" />
+              <h3 className="text-[#424242] font-semibold text-sm">외형/추가 요청</h3>
+              <span className="text-xs text-[#9E9E9E]">선택</span>
             </div>
+            <Textarea
+              {...register('visualHint')}
+              placeholder="예: 분홍 토끼 귀와 파스텔 후드티, 작은 별 모양 가방"
+              className="min-h-[80px] rounded-md border border-[#E0E0E0] bg-white resize-none focus-visible:ring-2 focus-visible:ring-[#FFA726]/30 focus-visible:border-[#FFA726] hover:border-[#FFA726]/50 transition-all text-sm"
+              maxLength={200}
+              disabled={isEdit}
+              readOnly={isEdit}
+            />
+            <p className="text-xs text-[#9E9E9E] mt-1">이미지 변환/모델링 시 반영할 외형·소품·분위기 등을 적어주세요. (최대 200자)</p>
 
-            {/* Keyword Input */}
-            <div className="flex gap-2 mb-3">
-              <Input
-                value={newKeyword}
-                onChange={(e) => setNewKeyword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                placeholder="키워드 입력..."
-                className="flex-1 h-10 rounded-lg border border-[#E0E0E0] bg-white focus-visible:ring-2 focus-visible:ring-[#FFA726]/30 focus-visible:border-[#FFA726] hover:border-[#FFA726]/50 transition-all text-sm"
-              />
-              <Button
-                type="button"
-                onClick={addKeyword}
-                disabled={!newKeyword.trim() || keywords.length >= 8}
-                className="h-10 w-10 rounded-lg bg-[#FFA726] hover:bg-[#F57C00] text-white"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Added Keywords */}
-            {keywords.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {keywords.map((keyword) => (
-                  <Badge key={keyword} className="bg-[#FFA726]/10 text-[#F57C00] border border-[#FFA726]/30 px-2 py-1 text-xs rounded-full">
-                    {keyword}
-                    <button
-                      type="button"
-                      onClick={() => removeKeyword(keyword)}
-                      className="ml-1.5 hover:bg-[#FFA726]/20 rounded-full transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            )}
-
-            {/* Keyword Suggestions */}
-            <div>
-              <p className="text-xs text-[#9E9E9E] mb-1.5">추천:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {KEYWORD_EXAMPLES.filter(k => !keywords.includes(k)).slice(0, 6).map((keyword, index) => (
-                  <button
-                    key={index}
+            <div className="mt-3">
+              <p className="text-xs text-[#9E9E9E] mb-1.5">아트 스타일 (선택)</p>
+              <div className="flex flex-wrap gap-2">
+                {['', '수채화', '파스텔', '만화', '디지털'].map((style) => (
+                  <Button
+                    key={style || 'none'}
                     type="button"
-                    onClick={() => addKeywordFromExample(keyword)}
-                    disabled={keywords.length >= 8}
-                    className="text-xs text-[#757575] bg-[#F5F5F5] px-2 py-1 rounded-full hover:bg-[#FFA726]/10 hover:text-[#F57C00] transition-all border border-[#E0E0E0] hover:border-[#FFA726]/30 disabled:opacity-50"
+                    variant={artStyle === style ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => !isEdit && setArtStyle(style)}
+                    disabled={isEdit}
+                    className={`rounded-full px-3 ${artStyle === style ? 'bg-[#FFA726] text-white border-[#FFA726]' : 'bg-white border-[#E0E0E0] text-[#757575]'} ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
-                    + {keyword}
-                  </button>
+                    {style || '기본'}
+                  </Button>
                 ))}
               </div>
             </div>
@@ -454,12 +447,9 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
 
           {/* Dialogues Section */}
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#E0E0E0]">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-4 h-4 text-[#FFA726]" />
-                <h3 className="text-[#424242] font-semibold text-sm">대사</h3>
-              </div>
-              <span className="text-xs text-[#9E9E9E]">{dialogues.length}/5</span>
+            <div className="flex items-center gap-2 mb-3">
+              <MessageCircle className="w-4 h-4 text-[#FFA726]" />
+              <h3 className="text-[#424242] font-semibold text-sm">대표 대사 (1개)</h3>
             </div>
 
             {/* Dialogue Input */}
@@ -468,16 +458,17 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
                 value={newDialogue}
                 onChange={(e) => setNewDialogue(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addDialogue())}
-                placeholder="캐릭터의 대사를 입력..."
+                placeholder="캐릭터의 대표 대사 한 줄 (최대 80자)"
+                maxLength={80}
                 className="flex-1 h-10 rounded-lg border border-[#E0E0E0] bg-white focus-visible:ring-2 focus-visible:ring-[#FFA726]/30 focus-visible:border-[#FFA726] hover:border-[#FFA726]/50 transition-all text-sm"
               />
               <Button
                 type="button"
                 onClick={addDialogue}
-                disabled={!newDialogue.trim() || dialogues.length >= 5}
-                className="h-10 w-10 rounded-lg bg-[#FFA726] hover:bg-[#F57C00] text-white"
+                disabled={!newDialogue.trim()}
+                className="h-10 w-24 rounded-lg bg-[#FFA726] hover:bg-[#F57C00] text-white"
               >
-                <Plus className="w-4 h-4" />
+                저장
               </Button>
             </div>
 
@@ -511,7 +502,7 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
                     key={index}
                     type="button"
                     onClick={() => addDialogueFromExample(dialogue)}
-                    disabled={dialogues.length >= 5}
+                    disabled={dialogues.length >= 1}
                     className="block w-full text-left text-xs text-[#757575] bg-[#F5F5F5] px-2.5 py-1.5 rounded-lg hover:bg-[#FFA726]/10 hover:text-[#F57C00] transition-all border border-[#E0E0E0] hover:border-[#FFA726]/30 disabled:opacity-50"
                   >
                     "{dialogue}"
@@ -538,11 +529,11 @@ export function CharacterCreatePage({ onBack, onSubmit }: CharacterCreatePagePro
           >
             {isSubmitting ? (
               <span className="flex items-center gap-2 justify-center text-sm">
-                캐릭터 만드는 중...
+                {isEdit ? '캐릭터 수정 중...' : '캐릭터 만드는 중...'}
               </span>
             ) : (
               <span className="flex items-center gap-2 justify-center text-sm">
-                캐릭터 생성하기
+                {isEdit ? '캐릭터 수정하기' : '캐릭터 생성하기'}
               </span>
             )}
           </Button>

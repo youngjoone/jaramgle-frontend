@@ -10,6 +10,8 @@ export interface Character {
   personality: string;
   keywords: string[];
   dialogues: string[];
+  visualHint?: string;
+  artStyle?: string;
   createdAt?: string;
 }
 
@@ -19,7 +21,7 @@ export const PERSONALITY_EXAMPLES = [
   "수줍음이 많지만 친구들에게는 따뜻하고 다정해요",
   "호기심이 많아서 새로운 것을 탐험하는 걸 좋아해요",
   "용감하고 정의로운 성격으로 친구들을 지켜주려 해요",
-  "똑똒하고 차분해서 어려운 문제도 잘 해결해요",
+  "똑똑하고 차분해서 어려운 문제도 잘 해결해요",
   "장난기가 많지만 속마음은 따뜻한 친구예요",
   "느긋하고 여유로운 성격으로 주변을 편안하게 만들어요",
   "부끄러움을 잘 타지만 마음속엔 큰 꿈이 있어요",
@@ -27,10 +29,10 @@ export const PERSONALITY_EXAMPLES = [
 
 // 키워드 예시
 export const KEYWORD_EXAMPLES = [
-  "용감한", "귀여운", "똑똒한", "장난꾸러기",
-  "친절한", "호기심왕", "수줍은", "활발한",
-  "다정한", "씩씩한", "온순한", "당당한",
-  "엉뚱한", "사랑스러운", "의리있는", "배려심깊은",
+  "분홍 토끼 귀", "노란 우비와 장화", "별무늬 망토", "파스텔 고양이 후드",
+  "초록 공룡 후드", "반짝이는 요정 날개", "작은 탐험가 모자", "별빛 지팡이",
+  "붉은 망토와 나침반", "파란 비행 모자", "무지개 팔찌", "별무늬 파자마",
+  "꽃무늬 원피스", "반달 안경", "로봇 팔 장갑", "물감 묻은 앞치마",
 ];
 
 // 대사 예시
@@ -54,9 +56,9 @@ interface CharactersState {
   isLoading: boolean;
   error: string | null;
   loadCharacters: () => Promise<void>;
-  createCharacter: (character: Omit<Character, 'id' | 'createdAt'>) => Promise<Character>;
+  createCharacter: (character: Omit<Character, 'id' | 'createdAt' | 'imageUrl'> & { imageFile: File | null; imagePreview?: string | null }) => Promise<Character>;
   deleteCharacter: (id: number) => Promise<void>;
-  updateCharacter: (id: number, updates: Partial<Character>) => Promise<void>;
+  updateCharacter: (id: number, updates: Partial<Character> & { imageFile?: File | null }) => Promise<void>;
   setCharacters: (characters: Character[]) => void;
 }
 
@@ -79,9 +81,14 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
         name: string;
         imageUrl?: string | null;
         image_url?: string | null;
-        personality?: string;
-        keywords?: string[];
-        dialogues?: string[];
+        persona?: string;
+        catchphrase?: string;
+        promptKeywords?: string;
+        visualDescription?: string;
+        artStyle?: string;
+        personality?: string; // legacy/local
+        keywords?: string[];  // legacy/local
+        dialogues?: string[]; // legacy/local
         createdAt?: string;
         created_at?: string;
       }>>("/characters/me");
@@ -90,9 +97,15 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
         id: c.id,
         name: c.name || "이름 없음",
         imageUrl: normalizeImage(c.imageUrl || c.image_url),
-        personality: c.personality || "",
-        keywords: c.keywords || [],
-        dialogues: c.dialogues || [],
+        personality: c.persona || c.personality || "",
+        keywords: c.promptKeywords
+          ? c.promptKeywords.split(',').map((k) => k.trim()).filter(Boolean)
+          : c.keywords || [],
+        dialogues: c.catchphrase
+          ? [c.catchphrase]
+          : (c.dialogues || []),
+        visualHint: c.visualDescription || "",
+        artStyle: c.artStyle || "",
         createdAt: c.createdAt || c.created_at,
       }));
 
@@ -104,42 +117,44 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
   },
 
   createCharacter: async (character) => {
-    const formData = new FormData();
-    formData.append('name', character.name);
-    formData.append('personality', character.personality);
-    formData.append('keywords', JSON.stringify(character.keywords));
-    formData.append('dialogues', JSON.stringify(character.dialogues));
-
-    // 이미지 URL이 있으면 전송 (실제로는 이미지 파일을 업로드해야 할 수 있음)
-    if (character.imageUrl) {
-      formData.append('imageUrl', character.imageUrl);
+    if (!character.imageFile) {
+      throw new Error("이미지 파일이 필요합니다.");
     }
 
-    const created = await apiFetch<{
-      id: number;
-      name: string;
-      imageUrl?: string | null;
-      personality?: string;
-      keywords?: string[];
-      dialogues?: string[];
-    }>("/characters", {
+    // 백엔드 CreateCharacterRequest 매핑
+    const payload = {
+      name: character.name,
+      persona: character.personality,
+      catchphrase: character.dialogues[0] || "",
+      promptKeywords: "", // 키워드 입력 제거
+      visualDescription: character.visualHint || character.personality || "",
+      descriptionPrompt: character.visualHint || character.dialogues[0] || "",
+      artStyle: character.artStyle || "",
+    };
+
+    const formData = new FormData();
+    formData.append("payload", new Blob([JSON.stringify(payload)], { type: "application/json" }));
+    formData.append("photo", character.imageFile);
+
+    const created = await apiFetch<Character>("/characters", {
       method: "POST",
-      body: {
-        name: character.name,
-        personality: character.personality,
-        keywords: character.keywords,
-        dialogues: character.dialogues,
-        imageUrl: character.imageUrl,
-      },
+      body: formData,
     });
 
     const newCharacter: Character = {
       id: created.id,
       name: created.name,
       imageUrl: created.imageUrl || null,
-      personality: created.personality || "",
-      keywords: created.keywords || [],
-      dialogues: created.dialogues || [],
+      personality: (created as any).persona || created.personality || "",
+      keywords: (created as any).promptKeywords
+        ? (created as any).promptKeywords.split(',').map((k: string) => k.trim()).filter(Boolean)
+        : created.keywords || [],
+      dialogues: (created as any).catchphrase
+        ? [(created as any).catchphrase]
+        : created.dialogues || character.dialogues,
+      visualHint: (created as any).visualDescription || character.visualHint,
+      artStyle: (created as any).artStyle || character.artStyle,
+      createdAt: created.createdAt,
     };
 
     set((state) => ({
@@ -157,13 +172,42 @@ export const useCharactersStore = create<CharactersState>((set, get) => ({
   },
 
   updateCharacter: async (id, updates) => {
-    await apiFetch(`/characters/${id}`, {
-      method: "PATCH",
-      body: updates,
+    const payload = {
+      name: updates.name,
+      persona: updates.personality,
+      catchphrase: updates.dialogues?.[0] || updates.dialogues?.[0] || "",
+      promptKeywords: "",
+      visualDescription: updates.visualHint || updates.personality || "",
+      descriptionPrompt: updates.visualHint || updates.dialogues?.[0] || "",
+      artStyle: updates.artStyle || "",
+    };
+
+    const formData = new FormData();
+    formData.append("payload", new Blob([JSON.stringify(payload)], { type: "application/json" }));
+    if (updates.imageFile) {
+      formData.append("photo", updates.imageFile);
+    }
+
+    const updated = await apiFetch<Character>(`/characters/${id}`, {
+      method: "PUT",
+      body: formData,
     });
+
     set((state) => ({
       characters: state.characters.map((c) =>
-        c.id === id ? { ...c, ...updates } : c
+        c.id === id
+          ? {
+              ...c,
+              name: updated.name,
+              imageUrl: updates.imageFile ? (updated.imageUrl || c.imageUrl) : c.imageUrl,
+              personality: (updated as any).persona || updated.personality || c.personality,
+              dialogues: (updated as any).catchphrase
+                ? [(updated as any).catchphrase]
+                : updated.dialogues || updates.dialogues || c.dialogues,
+              visualHint: (updated as any).visualDescription || updates.visualHint || c.visualHint,
+              artStyle: (updated as any).artStyle || updates.artStyle || c.artStyle,
+            }
+          : c
       ),
     }));
   },

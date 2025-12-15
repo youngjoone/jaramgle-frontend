@@ -27,42 +27,10 @@ interface Particle {
 }
 
 const pricingPlans: PricingPlan[] = [
-  {
-    id: 1,
-    name: '스타터',
-    emoji: '',
-    credits: 10,
-    bonus: 0,
-    price: 9,
-    isPopular: false,
-  },
-  {
-    id: 2,
-    name: '베스트',
-    emoji: '',
-    credits: 22,
-    bonus: 10,
-    price: 19,
-    isPopular: true,
-  },
-  {
-    id: 3,
-    name: '프리미엄',
-    emoji: '',
-    credits: 60,
-    bonus: 15,
-    price: 49,
-    isPopular: false,
-  },
-  {
-    id: 4,
-    name: '프로',
-    emoji: '',
-    credits: 130,
-    bonus: 20,
-    price: 99,
-    isPopular: false,
-  },
+  { id: 1, name: "스타터", emoji: "", credits: 5, bonus: 0, price: 5000, isPopular: false, productCode: "HEART_5" },
+  { id: 2, name: "베스트", emoji: "", credits: 10, bonus: 0, price: 10000, isPopular: true, productCode: "HEART_10" },
+  { id: 3, name: "프리미엄", emoji: "", credits: 20, bonus: 0, price: 20000, isPopular: false, productCode: "HEART_20" },
+  { id: 4, name: "프로", emoji: "", credits: 30, bonus: 0, price: 30000, isPopular: false, productCode: "HEART_30" },
 ];
 
 export function CreditPurchasePage() {
@@ -81,41 +49,6 @@ export function CreditPurchasePage() {
       delay: Math.random() * 5,
       duration: 10 + Math.random() * 10,
     })));
-  }, []);
-
-  useEffect(() => {
-    const loadProducts = async () => {
-      try {
-        const products = await apiFetch<Array<{
-          code: string;
-          name: string;
-          description: string;
-          hearts: number;
-          bonusHearts: number;
-          price: number;
-          sortOrder: number;
-        }>>("/billing/products");
-        const mapped: PricingPlan[] = products
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((p, idx) => ({
-            id: idx + 1,
-            name: p.name,
-            emoji: '',
-            credits: p.hearts,
-            bonus: p.bonusHearts,
-            price: p.price,
-            isPopular: idx === 1, // 두 번째 상품을 기본 인기 상품으로
-            productCode: p.code,
-          }));
-        if (mapped.length > 0) {
-          setPlans(mapped);
-        }
-      } catch (err) {
-        console.error("상품 목록 불러오기 실패", err);
-        // 실패 시 기본 프리셋 사용
-      }
-    };
-    loadProducts();
   }, []);
 
   const handlePurchase = async (plan: PricingPlan) => {

@@ -42,6 +42,7 @@ export default function MyCharacters() {
       characters={characters}
       onDelete={handleDelete}
       onNavigateToCreate={() => router.push('/my-characters/create')}
+      onViewCharacter={(c) => router.push(`/my-characters/${c.id}`)}
       isLoading={isLoading}
       error={error}
     />

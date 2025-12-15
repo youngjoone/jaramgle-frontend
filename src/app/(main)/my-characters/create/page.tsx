@@ -15,9 +15,11 @@ export default function CreateCharacter() {
   const handleSubmit = async (character: {
     name: string;
     personality: string;
-    keywords: string[];
     dialogues: string[];
-    imageUrl: string | null;
+    imageFile: File | null;
+    imagePreview: string | null;
+    visualHint: string;
+    artStyle: string;
   }) => {
     await createCharacter(character);
     router.push('/my-characters');
@@ -27,6 +29,7 @@ export default function CreateCharacter() {
     <CharacterCreatePage
       onBack={handleBack}
       onSubmit={handleSubmit}
+      mode="create"
     />
   );
 }

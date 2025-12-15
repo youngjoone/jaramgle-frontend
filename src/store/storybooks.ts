@@ -146,7 +146,8 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       createdAt?: string;
     }>>("/stories");
 
-    const currentUserName = useAuthStore.getState().user?.name || "나";
+    const currentUser = useAuthStore.getState().user;
+    const currentUserName = currentUser?.nickname || currentUser?.name || currentUser?.email || "나";
 
     const mapped: Storybook[] = stories.map((s) => ({
       id: s.id,

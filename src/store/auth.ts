@@ -6,7 +6,8 @@ import { persist } from 'zustand/middleware';
 interface UserProfile {
   id: number;
   email: string;
-  name: string;
+  name?: string;
+  nickname?: string;
   provider: string;
   role: string;
 }

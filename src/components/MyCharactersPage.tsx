@@ -279,6 +279,14 @@ function CharacterCard({ character, onDelete, onView }: CharacterCardProps) {
       whileHover={{ y: -6 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
       onClick={() => onView?.(character)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onView?.(character);
+        }
+      }}
     >
       {/* Content */}
       <div className="relative">
