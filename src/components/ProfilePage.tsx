@@ -1,11 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { LogOut, Mail, Calendar, BookOpen, Heart, Bookmark, Globe } from 'lucide-react';
+import { LogOut, Mail, Calendar, BookOpen, Heart, Bookmark, Globe, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { apiFetch } from '@/lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { useToastActions } from '@/components/ui/toast';
 
 interface ProfilePageProps {
   onLogout: () => void;
@@ -35,6 +43,12 @@ export function ProfilePage({ onLogout }: ProfilePageProps) {
     hearts: 0,
   });
   const [selectedLanguage, setSelectedLanguage] = useState('ko');
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [withdrawText, setWithdrawText] = useState('');
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const { error: toastError, success: toastSuccess } = useToastActions();
+
+  const confirmText = '동의합니다';
 
   const initialLetter = useMemo(() => {
     const src = profile?.nickname || profile?.email || 'U';
@@ -82,6 +96,28 @@ export function ProfilePage({ onLogout }: ProfilePageProps) {
       </div>
     );
   }
+
+  const handleWithdraw = async () => {
+    if (withdrawText.trim() !== confirmText) {
+      toastError('확인 문구가 일치하지 않아요');
+      return;
+    }
+    setIsWithdrawing(true);
+    try {
+      await apiFetch('/me/withdraw', {
+        method: 'POST',
+        body: { confirmation: withdrawText.trim() },
+      });
+      toastSuccess('회원탈퇴가 완료되었습니다.');
+      setIsWithdrawOpen(false);
+      onLogout();
+    } catch (err) {
+      console.error('회원탈퇴 실패', err);
+      toastError('회원탈퇴에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
 
   return (
     <div className="min-h-screen p-4 md:p-8">
@@ -196,19 +232,63 @@ export function ProfilePage({ onLogout }: ProfilePageProps) {
             {/* Delete Account */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4 p-4 bg-red-50/50 backdrop-blur-xl rounded-2xl border border-red-100/40">
               <div>
-                <p className="text-[#4A3F47] font-semibold mb-1">계정 삭제</p>
+                <p className="text-[#4A3F47] font-semibold mb-1">회원탈퇴</p>
                 <p className="text-sm text-[#7A6F76] font-normal">계정과 모든 데이터를 영구적으로 삭제</p>
               </div>
               <Button
                 variant="outline"
                 className="w-full md:w-auto border-red-300 text-red-600 hover:bg-red-50 rounded-xl font-semibold"
+                onClick={() => setIsWithdrawOpen(true)}
               >
-                삭제
+                탈퇴
               </Button>
             </div>
           </div>
         </Card>
       </div>
+
+      <Dialog open={isWithdrawOpen} onOpenChange={setIsWithdrawOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              회원탈퇴 확인
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm text-[#4A3F47]">
+            <p className="text-[#7A6F76]">
+              회원탈퇴 시 동화, 하트, 결제 기록 등 모든 데이터가 삭제되며 복구할 수 없습니다.
+              탈퇴 후에는 동일한 계정으로 새롭게 가입하게 됩니다.
+            </p>
+            <div className="space-y-2">
+              <p className="font-semibold text-[#4A3F47]">
+                계속하려면 아래에 <span className="text-red-600">동의합니다</span>를 입력하세요.
+              </p>
+              <Input
+                value={withdrawText}
+                onChange={(e) => setWithdrawText(e.target.value)}
+                placeholder="동의합니다"
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <Button
+                variant="outline"
+                className="border-gray-200"
+                onClick={() => setIsWithdrawOpen(false)}
+              >
+                취소
+              </Button>
+              <Button
+                className="bg-red-500 hover:bg-red-600 text-white"
+                onClick={handleWithdraw}
+                disabled={withdrawText.trim() !== confirmText || isWithdrawing}
+              >
+                {isWithdrawing ? '처리 중...' : '회원탈퇴'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
