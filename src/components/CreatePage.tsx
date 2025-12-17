@@ -167,6 +167,8 @@ export function CreatePage() {
   const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
   const [isCharacterGenerating, setIsCharacterGenerating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isHeartDialogOpen, setIsHeartDialogOpen] = useState(false);
+  const [heartDialogMessage, setHeartDialogMessage] = useState('하트가 부족합니다. 충전이 필요해요.');
 
   const styleScrollRef = useRef<HTMLDivElement>(null);
   const characterScrollRef = useRef<HTMLDivElement>(null);
@@ -357,10 +359,35 @@ export function CreatePage() {
       router.push("/my-books");
     } catch (err: unknown) {
       console.error("동화 생성/스토리북 생성 실패", err);
+      const parsedError = parseApiError(err);
+      if (parsedError.code === "INSUFFICIENT_HEARTS" || (parsedError.message ?? "").includes("하트")) {
+        setHeartDialogMessage(parsedError.message || "하트가 부족합니다. 충전이 필요해요.");
+        setIsHeartDialogOpen(true);
+        return;
+      }
       alert("동화 또는 이미지 생성에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const parseApiError = (err: unknown): { code?: string; message?: string } => {
+    if (err instanceof Error) {
+      const raw = err.message;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          return {
+            code: (parsed as { code?: string }).code,
+            message: (parsed as { message?: string }).message,
+          };
+        }
+      } catch {
+        // fall through
+      }
+      return { message: raw };
+    }
+    return {};
   };
 
   const scrollStylePresets = (direction: 'left' | 'right') => {
@@ -1049,6 +1076,37 @@ export function CreatePage() {
                 </Button>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Insufficient Hearts Dialog */}
+      <Dialog open={isHeartDialogOpen} onOpenChange={setIsHeartDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-white rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#1A1A1A]">하트가 부족해요</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm text-[#757575]">
+            <p>{heartDialogMessage}</p>
+            <p>하트를 충전하면 바로 동화를 만들 수 있어요.</p>
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <Button
+                variant="outline"
+                className="border-[#E0E0E0] text-[#757575]"
+                onClick={() => setIsHeartDialogOpen(false)}
+              >
+                취소
+              </Button>
+              <Button
+                className="bg-gradient-to-r from-[#66BB6A] to-[#81C784] text-white"
+                onClick={() => {
+                  setIsHeartDialogOpen(false);
+                  router.push("/subscription");
+                }}
+              >
+                하트 충전하러 가기
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
