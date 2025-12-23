@@ -38,11 +38,36 @@ interface StorybooksState {
 export const useStorybooksStore = create<StorybooksState>((set, get) => ({
   storybooks: [],
   viewingStorybook: null,
-  toggleBookmark: (id) => set((state) => ({
-    storybooks: state.storybooks.map(book =>
-      book.id === id ? { ...book, isBookmarked: !book.isBookmarked } : book
-    )
-  })),
+  toggleBookmark: async (id) => {
+    const book = get().storybooks.find(b => b.id === id);
+    if (!book || !book.shareSlug) return;
+    const slug = book.shareSlug;
+
+    // Optimistic update
+    set((state) => ({
+      storybooks: state.storybooks.map(b =>
+        b.id === id ? { ...b, isBookmarked: !b.isBookmarked } : b
+      )
+    }));
+
+    try {
+      if (book.isBookmarked) {
+        // Was bookmarked, so unbookmark
+        await apiFetch(`/public/shared-stories/${slug}/bookmarks`, { method: "DELETE" });
+      } else {
+        // Was not bookmarked, so bookmark
+        await apiFetch(`/public/shared-stories/${slug}/bookmarks`, { method: "POST" });
+      }
+    } catch (err) {
+      console.error("북마크 토글 실패", err);
+      // Revert on failure
+      set((state) => ({
+        storybooks: state.storybooks.map(b =>
+          b.id === id ? { ...b, isBookmarked: book.isBookmarked } : b
+        )
+      }));
+    }
+  },
   toggleLike: async ({ id, shareSlug }) => {
     // 좋아요는 공유된 동화(slug 기준)에서만 지원
     const slug = shareSlug || get().storybooks.find((b) => b.id === id)?.shareSlug;
@@ -72,13 +97,13 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
         storybooks: state.storybooks.map((book) =>
           book.shareSlug === slug
             ? {
-                ...book,
-                likedByMe: resp.liked,
-                // 서버가 0을 돌려도 증가 상태를 덮어쓰지 않도록 방향에 맞춰 보정
-                likes: resp.liked
-                  ? Math.max(toSafeLikes(book.likes), safeResp)
-                  : Math.min(toSafeLikes(book.likes), safeResp),
-              }
+              ...book,
+              likedByMe: resp.liked,
+              // 서버가 0을 돌려도 증가 상태를 덮어쓰지 않도록 방향에 맞춰 보정
+              likes: resp.liked
+                ? Math.max(toSafeLikes(book.likes), safeResp)
+                : Math.min(toSafeLikes(book.likes), safeResp),
+            }
             : book
         )
       }));
@@ -210,6 +235,7 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       likedByCurrentUser?: boolean;
       comment_count: number;
       cover_image_url?: string | null;
+      isBookmarked?: boolean;
     }>>("/public/shared-stories");
 
     const mapped: Storybook[] = sharedStories.map((s) => ({
@@ -220,11 +246,19 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       categories: [],
       likes: Number(s.like_count) || 0,
       likedByMe: !!(s.liked_by_current_user ?? s.likedByCurrentUser),
-      isBookmarked: false,
+      isBookmarked: !!(s.isBookmarked),
       isShared: true,
       shareSlug: s.share_slug,
       isOwned: false,
     }));
+
+    // Sort: Bookmarked first, then by original order (which is usually popular or newest from backend)
+    mapped.sort((a, b) => {
+      if (a.isBookmarked && !b.isBookmarked) return -1;
+      if (!a.isBookmarked && b.isBookmarked) return 1;
+      return 0;
+    });
+
     set({ storybooks: mapped });
   },
 }));

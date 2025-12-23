@@ -16,11 +16,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { GenerationLoading } from '@/components/GenerationLoading';
 
 const ageGroups = ["0-3세", "4-6세", "7-9세", "10-12세"];
 const genres = ["판타지", "모험", "교육", "자장가", "SF", "동화"];
 const lengths = ["10페이지", "15페이지", "20페이지"];
-const languages = ["한국어", "English"];
+const languages = ["한국어", "English", "日本語", "Français", "Español", "Deutsch", "中文"];
 const learningGoals = ["과학", "수학", "영어", "한글", "역사", "자연", "예술", "생활습관"];
 
 const elementPresets = [
@@ -320,7 +321,18 @@ export function CreatePage() {
 
     const minPages = parseInt(selectedLength.replace(/[^0-9]/g, ""), 10) || 10;
     const characterIds = selectedCharacterIds.filter((id) => id > 0).slice(0, 2);
-    const languageCode = selectedLanguage === "한국어" ? "KO" : "EN";
+
+    const languageMap: Record<string, string> = {
+      "한국어": "KO",
+      "English": "EN",
+      "日本語": "JA",
+      "Français": "FR",
+      "Español": "ES",
+      "Deutsch": "DE",
+      "中文": "ZH"
+    };
+    const languageCode = languageMap[selectedLanguage] || "KO";
+
     const moralText = isCustomMoral ? customMoralText.trim() : (selectedMoral || "").trim();
     const requiredElements = parseRequiredElements();
 
@@ -410,6 +422,10 @@ export function CreatePage() {
     }
   };
 
+  if (isGenerating) {
+    return <GenerationLoading progress={progress} />;
+  }
+
   return (
     <div className="h-screen overflow-y-auto bg-[#FFFFFF]">
       <div className="max-w-4xl mx-auto px-8 py-12">
@@ -434,11 +450,10 @@ export function CreatePage() {
                   key={language}
                   variant="outline"
                   size="sm"
-                  className={`rounded-full px-6 transition-all duration-300 ${
-                    selectedLanguage === language
-                      ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
-                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
-                  }`}
+                  className={`rounded-full px-6 transition-all duration-300 ${selectedLanguage === language
+                    ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
+                    : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
+                    }`}
                   onClick={() => setSelectedLanguage(language)}
                 >
                   {language}
@@ -456,11 +471,10 @@ export function CreatePage() {
                   key={goal}
                   variant="outline"
                   size="sm"
-                  className={`rounded-full px-6 transition-all duration-300 ${
-                    selectedGoals.includes(goal)
-                      ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
-                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
-                  }`}
+                  className={`rounded-full px-6 transition-all duration-300 ${selectedGoals.includes(goal)
+                    ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
+                    : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
+                    }`}
                   onClick={() => toggleGoal(goal)}
                 >
                   {goal}
@@ -478,11 +492,10 @@ export function CreatePage() {
                   key={age}
                   variant="outline"
                   size="sm"
-                  className={`rounded-full px-6 transition-all duration-300 ${
-                    selectedAge === age
-                      ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
-                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
-                  }`}
+                  className={`rounded-full px-6 transition-all duration-300 ${selectedAge === age
+                    ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
+                    : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
+                    }`}
                   onClick={() => setSelectedAge(age)}
                 >
                   {age}
@@ -500,11 +513,10 @@ export function CreatePage() {
                   key={genre}
                   variant="outline"
                   size="sm"
-                  className={`rounded-full px-6 transition-all duration-300 ${
-                    selectedGenre === genre
-                      ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
-                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
-                  }`}
+                  className={`rounded-full px-6 transition-all duration-300 ${selectedGenre === genre
+                    ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
+                    : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
+                    }`}
                   onClick={() => setSelectedGenre(genre)}
                 >
                   {genre}
@@ -522,11 +534,10 @@ export function CreatePage() {
                   key={length}
                   variant="outline"
                   size="sm"
-                  className={`rounded-full px-6 transition-all duration-300 ${
-                    selectedLength === length
-                      ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
-                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
-                  }`}
+                  className={`rounded-full px-6 transition-all duration-300 ${selectedLength === length
+                    ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
+                    : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
+                    }`}
                   onClick={() => setSelectedLength(length)}
                 >
                   {length}
@@ -575,11 +586,10 @@ export function CreatePage() {
             <Button
               variant="outline"
               size="sm"
-              className={`rounded-full px-5 transition-all duration-300 ${
-                !selectedMoral && !isCustomMoral
-                  ? 'bg-[#FFA726]/10 text-[#F57C00] border-[#FFA726]/30'
-                  : 'bg-white border border-[#E0E0E0] text-[#757575] hover:bg-[#FFF3E0] hover:border-[#FFA726]/30'
-              }`}
+              className={`rounded-full px-5 transition-all duration-300 ${!selectedMoral && !isCustomMoral
+                ? 'bg-[#FFA726]/10 text-[#F57C00] border-[#FFA726]/30'
+                : 'bg-white border border-[#E0E0E0] text-[#757575] hover:bg-[#FFF3E0] hover:border-[#FFA726]/30'
+                }`}
               onClick={handleNoMoralClick}
             >
               <X className="w-4 h-4 mr-1" />
@@ -588,11 +598,10 @@ export function CreatePage() {
             <Button
               variant="outline"
               size="sm"
-              className={`rounded-full px-5 transition-all duration-300 ${
-                isCustomMoral
-                  ? 'bg-[#FFA726]/10 text-[#F57C00] border-[#FFA726]/30'
-                  : 'bg-white border border-[#E0E0E0] text-[#757575] hover:bg-[#FFF3E0] hover:border-[#FFA726]/30'
-              }`}
+              className={`rounded-full px-5 transition-all duration-300 ${isCustomMoral
+                ? 'bg-[#FFA726]/10 text-[#F57C00] border-[#FFA726]/30'
+                : 'bg-white border border-[#E0E0E0] text-[#757575] hover:bg-[#FFF3E0] hover:border-[#FFA726]/30'
+                }`}
               onClick={handleCustomMoralClick}
             >
               <PenLine className="w-4 h-4 mr-1" />
@@ -626,11 +635,10 @@ export function CreatePage() {
                 <Badge
                   key={index}
                   variant="outline"
-                  className={`cursor-pointer transition-all px-4 py-2 rounded-full font-medium ${
-                    selectedMoral === moral
-                      ? 'bg-[#FFA726]/10 text-[#F57C00] border-[#FFA726]/50'
-                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#FFF3E0] hover:border-[#FFA726]/30'
-                  }`}
+                  className={`cursor-pointer transition-all px-4 py-2 rounded-full font-medium ${selectedMoral === moral
+                    ? 'bg-[#FFA726]/10 text-[#F57C00] border-[#FFA726]/50'
+                    : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#FFF3E0] hover:border-[#FFA726]/30'
+                    }`}
                   onClick={() => handleMoralSelect(moral)}
                 >
                   {moral}
@@ -676,11 +684,10 @@ export function CreatePage() {
                 key={index}
                 whileHover={{ scale: 1.05, y: -4 }}
                 onClick={() => setSelectedArtStyle(preset.name)}
-                className={`flex-shrink-0 w-48 h-36 rounded-3xl bg-gradient-to-br cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${
-                  selectedArtStyle === preset.name
-                    ? 'ring-4 ring-[#66BB6A] ring-offset-2'
-                    : 'border-2 border-[#E0E0E0]'
-                }`}
+                className={`flex-shrink-0 w-48 h-36 rounded-3xl bg-gradient-to-br cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${selectedArtStyle === preset.name
+                  ? 'ring-4 ring-[#66BB6A] ring-offset-2'
+                  : 'border-2 border-[#E0E0E0]'
+                  }`}
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${preset.color} opacity-90`} />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#424242]/40 to-transparent flex items-end p-4">
@@ -752,11 +759,10 @@ export function CreatePage() {
                     });
                   }
                 }}
-                className={`flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${
-                  selectedCharacterIds.includes(character.id)
-                    ? 'ring-4 ring-[#66BB6A] ring-offset-2'
-                    : 'border-2 border-[#E0E0E0]'
-                }`}
+                className={`flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${selectedCharacterIds.includes(character.id)
+                  ? 'ring-4 ring-[#66BB6A] ring-offset-2'
+                  : 'border-2 border-[#E0E0E0]'
+                  }`}
               >
                 {character.imageUrl ? (
                   <ImageWithFallback
@@ -848,11 +854,10 @@ export function CreatePage() {
                     });
                   }
                 }}
-                className={`flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${
-                  selectedCharacterIds.includes(character.id)
-                    ? 'ring-4 ring-[#FFA726] ring-offset-2'
-                    : 'border-2 border-[#E0E0E0]'
-                }`}
+                className={`flex-shrink-0 w-40 h-52 rounded-3xl cursor-pointer shadow-lg hover:shadow-xl transition-all relative overflow-hidden ${selectedCharacterIds.includes(character.id)
+                  ? 'ring-4 ring-[#FFA726] ring-offset-2'
+                  : 'border-2 border-[#E0E0E0]'
+                  }`}
               >
                 {character.imageUrl ? (
                   <ImageWithFallback
@@ -957,11 +962,10 @@ export function CreatePage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleUploadBoxClick}
-                  className={`relative w-full aspect-square rounded-2xl cursor-pointer transition-all overflow-hidden ${
-                    uploadedImage
-                      ? 'border-2 border-[#66BB6A]'
-                      : 'border-2 border-dashed border-[#E0E0E0] hover:border-[#FFA726] bg-[#FAFAFA]'
-                  }`}
+                  className={`relative w-full aspect-square rounded-2xl cursor-pointer transition-all overflow-hidden ${uploadedImage
+                    ? 'border-2 border-[#66BB6A]'
+                    : 'border-2 border-dashed border-[#E0E0E0] hover:border-[#FFA726] bg-[#FAFAFA]'
+                    }`}
                 >
                   {uploadedImage ? (
                     <>
@@ -992,11 +996,10 @@ export function CreatePage() {
               <div className="space-y-3">
                 <p className="text-sm font-semibold text-[#424242] text-center">생성된 캐릭터</p>
                 <div
-                  className={`relative w-full aspect-square rounded-2xl overflow-hidden ${
-                    generatedCharacterImage
-                      ? 'border-2 border-[#66BB6A]'
-                      : 'border-2 border-dashed border-[#E0E0E0] bg-[#FAFAFA]'
-                  }`}
+                  className={`relative w-full aspect-square rounded-2xl overflow-hidden ${generatedCharacterImage
+                    ? 'border-2 border-[#66BB6A]'
+                    : 'border-2 border-dashed border-[#E0E0E0] bg-[#FAFAFA]'
+                    }`}
                 >
                   {isCharacterGenerating ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-[#FFF3E0] to-[#F1F8E9]">
