@@ -15,7 +15,7 @@ import { type Storybook } from '@/store';
 
 interface ExplorePageProps {
   storybooks: Storybook[];
-  onToggleBookmark: (id: number) => void;
+  onToggleBookmark: (shareSlug: string) => void;
   onToggleLike: (params: { id?: number; shareSlug?: string | null }) => void;
   onViewStorybook: (storybook: Storybook) => void;
   isLoading?: boolean;
@@ -97,10 +97,19 @@ export function ExplorePage({ storybooks, onToggleBookmark, onToggleLike, onView
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
+      // 1. Bookmarked items always come first
+      if (a.isBookmarked && !b.isBookmarked) return -1;
+      if (!a.isBookmarked && b.isBookmarked) return 1;
+
+      // 2. Apply selected sort within the groups (bookmarked vs non-bookmarked)
       switch (sortBy) {
         case 'popular':
           return b.likes - a.likes;
         case 'newest':
+          // For shared stories, id might be 0, so we might want to use another field if available, 
+          // but assuming id works or falling back to original order if ids are equal/zero.
+          // If ids are 0, we can't sort by newest effectively unless we have createdAt. 
+          // But let's stick to existing logic for now.
           return b.id - a.id;
         case 'alphabetical':
           return a.title.localeCompare(b.title);
@@ -377,7 +386,7 @@ export function ExplorePage({ storybooks, onToggleBookmark, onToggleLike, onView
 
 interface StorybookCardProps {
   storybook: Storybook;
-  onToggleBookmark: (id: number) => void;
+  onToggleBookmark: (shareSlug: string) => void;
   onToggleLike: (params: { id?: number; shareSlug?: string | null }) => void;
   onViewStorybook: (storybook: Storybook) => void;
 }
@@ -441,12 +450,12 @@ function StorybookCard({ storybook, onToggleBookmark, onToggleLike, onViewStoryb
               size="icon"
               onClick={(e) => {
                 e.stopPropagation();
-                if (!storybook.id) return;
-                onToggleBookmark(storybook.id);
+                if (!storybook.shareSlug) return;
+                onToggleBookmark(storybook.shareSlug);
               }}
               className={`w-8 h-8 rounded-full transition-colors border ${storybook.isBookmarked
-                  ? 'text-[#66BB6A] bg-[#F1F8E9] border-[#66BB6A]/30'
-                  : 'text-[#757575] hover:text-[#66BB6A] hover:bg-[#F1F8E9] border-transparent hover:border-[#66BB6A]/20'
+                ? 'text-[#66BB6A] bg-[#F1F8E9] border-[#66BB6A]/30'
+                : 'text-[#757575] hover:text-[#66BB6A] hover:bg-[#F1F8E9] border-transparent hover:border-[#66BB6A]/20'
                 }`}
             >
               <Bookmark

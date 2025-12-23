@@ -23,7 +23,7 @@ const placeholderImage = "https://images.unsplash.com/photo-1500530855697-b586d8
 interface StorybooksState {
   storybooks: Storybook[];
   viewingStorybook: Storybook | null;
-  toggleBookmark: (id: number) => void;
+  toggleBookmark: (shareSlug: string) => void;
   toggleLike: (params: { id?: number; shareSlug?: string | null }) => Promise<void>;
   toggleShare: (id: number) => Promise<void>;
   deleteStorybook: (id: number) => Promise<void>;
@@ -38,32 +38,31 @@ interface StorybooksState {
 export const useStorybooksStore = create<StorybooksState>((set, get) => ({
   storybooks: [],
   viewingStorybook: null,
-  toggleBookmark: async (id) => {
-    const book = get().storybooks.find(b => b.id === id);
+  toggleBookmark: async (shareSlug) => {
+    const book = get().storybooks.find(b => b.shareSlug === shareSlug);
     if (!book || !book.shareSlug) return;
-    const slug = book.shareSlug;
 
     // Optimistic update
     set((state) => ({
       storybooks: state.storybooks.map(b =>
-        b.id === id ? { ...b, isBookmarked: !b.isBookmarked } : b
+        b.shareSlug === shareSlug ? { ...b, isBookmarked: !b.isBookmarked } : b
       )
     }));
 
     try {
       if (book.isBookmarked) {
         // Was bookmarked, so unbookmark
-        await apiFetch(`/public/shared-stories/${slug}/bookmarks`, { method: "DELETE" });
+        await apiFetch(`/public/shared-stories/${shareSlug}/bookmarks`, { method: "DELETE" });
       } else {
         // Was not bookmarked, so bookmark
-        await apiFetch(`/public/shared-stories/${slug}/bookmarks`, { method: "POST" });
+        await apiFetch(`/public/shared-stories/${shareSlug}/bookmarks`, { method: "POST" });
       }
     } catch (err) {
       console.error("북마크 토글 실패", err);
       // Revert on failure
       set((state) => ({
         storybooks: state.storybooks.map(b =>
-          b.id === id ? { ...b, isBookmarked: book.isBookmarked } : b
+          b.shareSlug === shareSlug ? { ...b, isBookmarked: book.isBookmarked } : b
         )
       }));
     }
@@ -236,6 +235,7 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       comment_count: number;
       cover_image_url?: string | null;
       isBookmarked?: boolean;
+      bookmarked?: boolean;
     }>>("/public/shared-stories");
 
     const mapped: Storybook[] = sharedStories.map((s) => ({
@@ -246,7 +246,7 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       categories: [],
       likes: Number(s.like_count) || 0,
       likedByMe: !!(s.liked_by_current_user ?? s.likedByCurrentUser),
-      isBookmarked: !!(s.isBookmarked),
+      isBookmarked: !!(s.isBookmarked ?? s.bookmarked),
       isShared: true,
       shareSlug: s.share_slug,
       isOwned: false,
