@@ -150,6 +150,7 @@ export function CreatePage() {
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<number[]>([]);
   const [selectedArtStyle, setSelectedArtStyle] = useState<string | null>("수채화 꿈");
+  const [voicePreset, setVoicePreset] = useState<string>('default');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [requiredElementsText, setRequiredElementsText] = useState('');
@@ -176,6 +177,12 @@ export function CreatePage() {
   const myCharacterScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // load saved voice preference
+    const savedVoice = localStorage.getItem('voicePreset');
+    if (savedVoice) {
+      setVoicePreset(savedVoice);
+    }
+
     let mounted = true;
     const normalizeImageUrl = (url?: string | null) => {
       if (!url) return null;
@@ -354,6 +361,8 @@ export function CreatePage() {
     if (requiredElements.length > 0) {
       payload.required_elements = requiredElements;
     }
+    // Save preferred voice preset for later TTS playback (viewer에서 사용)
+    localStorage.setItem('voicePreset', voicePreset);
 
     try {
       // 1) 글 생성
@@ -363,9 +372,12 @@ export function CreatePage() {
       });
       setProgress(50);
 
-      // 2) 이미지/스토리북 생성
+      // 2) 이미지/스토리북 생성 (선택한 음성 프리셋 전달)
       await apiFetch(`/stories/${story.id}/storybook`, {
         method: "POST",
+        body: {
+          voicePreset: voicePreset !== 'default' ? voicePreset : undefined
+        }
       });
       setProgress(100);
       router.push("/my-books");
@@ -541,6 +553,35 @@ export function CreatePage() {
                   onClick={() => setSelectedLength(length)}
                 >
                   {length}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Voice preset */}
+          <div>
+            <label className="text-sm text-[#1A1A1A] font-semibold mb-3 block">음성</label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "default", label: "기본" },
+                { key: "male", label: "남성" },
+                { key: "female", label: "여성" },
+                { key: "child", label: "어린이" },
+                { key: "grandpa", label: "할아버지" },
+                { key: "grandma", label: "할머니" }
+              ].map((v) => (
+                <Button
+                  key={v.key}
+                  variant="outline"
+                  size="sm"
+                  className={`rounded-full px-6 transition-all duration-300 ${
+                    voicePreset === v.key
+                      ? 'bg-[#66BB6A]/10 text-[#388E3C] border-[#66BB6A]/30'
+                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#66BB6A]/30'
+                  }`}
+                  onClick={() => setVoicePreset(v.key)}
+                >
+                  {v.label}
                 </Button>
               ))}
             </div>

@@ -38,6 +38,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [voicePreset, setVoicePreset] = useState<string>('default');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const formatTime = (seconds: number) => {
@@ -65,6 +66,18 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   // Auto-focus on mount for keyboard accessibility
   useEffect(() => {
     containerRef.current?.focus();
+  }, []);
+
+  // Load preferred voice preset saved during creation
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('voicePreset');
+      if (saved) {
+        setVoicePreset(saved);
+      }
+    } catch {
+      // ignore
+    }
   }, []);
 
   useEffect(() => {
@@ -313,9 +326,9 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
           method: 'POST',
           body: {
             text: currentPageData.text,
-            // Default options
-            speakerSlug: 'ko-KR-Standard-A',
-            language: 'ko-KR'
+            // Optional: user-selected voice preset for Gemini TTS style guidance
+            voicePreset: voicePreset !== 'default' ? voicePreset : undefined,
+            language: storybook.language || 'KO'
           }
         }
       );
@@ -440,7 +453,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
         </div>
 
         {/* Audio Controls */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           {isGeneratingAudio ? (
             <Button
               variant="ghost"
