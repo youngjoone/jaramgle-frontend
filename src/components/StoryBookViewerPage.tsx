@@ -21,6 +21,7 @@ interface StoryBookViewerPageProps {
     title: string;
     author: string;
     shareSlug?: string | null;
+    language?: string;
   };
   onClose: () => void;
 }
@@ -207,19 +208,114 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     setDuration(0);
   }, [currentPage]);
 
-  const handleNextPage = useCallback(() => {
-    if (currentPage < pages.length - 1) {
-      setDirection(1);
-      setCurrentPage(prev => prev + 1);
+  // Animation State
+  const [flippingState, setFlippingState] = useState<'idle' | 'next' | 'prev'>('idle');
+
+  // Page flip animation variants
+  const flipVariants = {
+    initial: (direction: number) => ({
+      rotateY: direction > 0 ? 0 : -180,
+      zIndex: 50,
+    }),
+    animate: (direction: number) => ({
+      rotateY: direction > 0 ? -180 : 0,
+      zIndex: 50,
+      transition: {
+        duration: 0.8,
+        ease: [0.645, 0.045, 0.355, 1.000] as any, // cubic-bezier for smooth paper feel
+      }
+    }),
+    exit: {
+      opacity: 0 // Should not happen in manual state, but for safety
     }
-  }, [currentPage, pages.length]);
+  };
+
+  const handleNextPage = useCallback(() => {
+    if (currentPage < pages.length - 1 && flippingState === 'idle') {
+      setDirection(1);
+      setFlippingState('next');
+    }
+  }, [currentPage, pages.length, flippingState]);
 
   const handlePrevPage = useCallback(() => {
-    if (currentPage > 0) {
+    if (currentPage > 0 && flippingState === 'idle') {
       setDirection(-1);
+      setFlippingState('prev');
+    }
+  }, [currentPage, flippingState]);
+
+  const onFlipComplete = () => {
+    if (flippingState === 'next') {
+      setCurrentPage(prev => prev + 1);
+    } else if (flippingState === 'prev') {
       setCurrentPage(prev => prev - 1);
     }
-  }, [currentPage]);
+    setFlippingState('idle');
+  };
+
+  // Helper to render a single page face
+  const renderPageFace = (pageIndex: number, side: 'left' | 'right') => {
+    const page = pages[pageIndex];
+    if (!page) return <div className="w-full h-full bg-[#FDFBF7]" />; // Empty/Cover
+
+    const isImage = side === 'left';
+
+    return (
+      <div className="w-full h-full relative overflow-hidden bg-[#FDFBF7]">
+        {/* Paper Texture */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: `url("https://www.transparenttextures.com/patterns/paper.png")` }}></div>
+
+        {/* Spine Gradient/Shadow */}
+        {side === 'left' ? (
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/10 to-transparent pointer-events-none z-10 mix-blend-multiply"></div>
+        ) : (
+          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/10 to-transparent pointer-events-none z-10 mix-blend-multiply"></div>
+        )}
+
+        {isImage ? (
+          <div className="w-full h-full p-6 md:p-10 flex items-center justify-center">
+            <div className="relative w-full h-full rounded-sm overflow-hidden shadow-inner border border-black/5 bg-white">
+              <img
+                src={page.imageUrl || placeholderImage}
+                alt={`Page ${page.pageNo}`}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] pointer-events-none"></div>
+            </div>
+            <div className="absolute bottom-4 left-6 text-[#8D6E63] font-serif text-sm opacity-60">
+              {pageIndex * 2 + 1}
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-full p-8 md:p-14 flex items-center justify-center">
+            <div className="prose prose-lg md:prose-xl font-serif text-[#4E342E] leading-loose text-center whitespace-pre-wrap">
+              {page.text}
+            </div>
+            <div className="absolute bottom-4 right-6 text-[#8D6E63] font-serif text-sm opacity-60">
+              {pageIndex * 2 + 2}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Helper to render a blank page face (for flipping animation)
+  const renderBlankFace = (side: 'left' | 'right') => {
+    return (
+      <div className="w-full h-full relative overflow-hidden bg-[#FDFBF7]">
+        {/* Paper Texture */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: `url("https://www.transparenttextures.com/patterns/paper.png")` }}></div>
+
+        {/* Spine Gradient/Shadow */}
+        {side === 'left' ? (
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/10 to-transparent pointer-events-none z-10 mix-blend-multiply"></div>
+        ) : (
+          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/10 to-transparent pointer-events-none z-10 mix-blend-multiply"></div>
+        )}
+      </div>
+    );
+  };
 
   // Global keyboard event listener
   useEffect(() => {
@@ -232,24 +328,6 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNextPage, handlePrevPage, onClose]);
-
-  const pageVariants = {
-    enter: (direction: number) => ({
-      rotateY: direction > 0 ? 90 : -90,
-      opacity: 0,
-      scale: 0.8
-    }),
-    center: {
-      rotateY: 0,
-      opacity: 1,
-      scale: 1
-    },
-    exit: (direction: number) => ({
-      rotateY: direction > 0 ? -90 : 90,
-      opacity: 0,
-      scale: 0.8
-    })
-  };
 
   const currentPageData = pages[currentPage];
 
@@ -426,180 +504,228 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     );
   }
 
+  // Calculate stack thickness
+  const leftStackCount = currentPage;
+  const rightStackCount = pages.length - 1 - currentPage;
+  const maxStack = 5; // Visual cap
+  const leftStackWidth = Math.min(leftStackCount, maxStack) * 4;
+  const rightStackWidth = Math.min(rightStackCount, maxStack) * 4;
+
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 bg-gradient-to-br from-[#F1F8E9] via-[#E8F5E9] to-[#C8E6C9] z-50 flex flex-col"
+      className="fixed inset-0 bg-gradient-to-br from-[#F1F8E9] via-[#E8F5E9] to-[#C8E6C9] z-50 flex flex-col items-center justify-center overflow-hidden perspective-[2000px]"
       tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={`${storybook.title} 동화책 뷰어`}
     >
       {/* Header */}
-      <div className="flex-shrink-0 p-3 md:p-6 flex items-center justify-between border-b border-white/40 z-10 bg-white/40 backdrop-blur-2xl shadow-[0_4px_24px_rgba(176,123,172,0.08)]">
+      <div className="absolute top-0 left-0 right-0 p-3 md:p-6 flex items-center justify-between z-20">
         <div className="flex items-center gap-2 md:gap-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="text-[#4A3F47] hover:bg-white/60 hover:backdrop-blur-md rounded-xl w-8 h-8 md:w-10 md:h-10"
+            className="text-[#4A3F47] hover:bg-white/40 rounded-full w-10 h-10"
           >
-            <X className="w-4 h-4 md:w-5 md:h-5" />
+            <X className="w-6 h-6" />
           </Button>
           <div>
-            <h2 className="text-[#4A3F47]">{storybook.title}</h2>
-            <p className="text-[#7A6F76] text-sm">by {storybook.author}</p>
+            <h2 className="text-[#4A3F47] font-serif tracking-wide text-lg">{storybook.title}</h2>
+            <p className="text-[#7A6F76] text-xs">by {storybook.author}</p>
           </div>
         </div>
 
-        {/* Audio Controls */}
-        <div className="flex items-center gap-4 flex-wrap">
+        {/* Audio Controls (Floating) */}
+        <div className="flex items-center gap-3 bg-white/40 backdrop-blur-md rounded-full p-2 pr-4 border border-white/40 shadow-lg">
           {isGeneratingAudio ? (
-            <Button
-              variant="ghost"
-              disabled
-              className="rounded-full bg-white/40 border border-white/40 text-[#7A6F76] gap-2 px-4"
-            >
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">생성 중...</span>
-            </Button>
-          ) : currentPageData.audioUrl ? (
-            <div className="flex items-center gap-3 bg-white/40 backdrop-blur-md rounded-full border border-white/40 p-2 pr-4">
-              {/* Play/Pause Button */}
-              {isPlaying ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handlePauseAudio}
-                  className="rounded-full w-8 h-8 hover:bg-white/60 text-[#66BB6A]"
-                >
-                  <Pause className="w-4 h-4 fill-current" />
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handlePlayAudio}
-                  className="rounded-full w-8 h-8 hover:bg-white/60 text-[#66BB6A]"
-                >
-                  <Play className="w-4 h-4 fill-current ml-0.5" />
-                </Button>
-              )}
-
-              {/* Progress Bar & Time */}
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-[#7A6F76] font-medium w-9 text-right">
-                  {formatTime(currentTime)}
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={duration || 100}
-                  value={currentTime}
-                  onChange={handleSeek}
-                  className="w-24 md:w-32 h-1.5 bg-white/50 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#66BB6A] hover:[&::-webkit-slider-thumb]:scale-110 transition-all"
-                  style={{
-                    background: `linear-gradient(to right, #66BB6A ${(currentTime / (duration || 1)) * 100}%, rgba(255,255,255,0.5) ${(currentTime / (duration || 1)) * 100}%)`
-                  }}
-                />
-                <span className="text-xs text-[#7A6F76] font-medium w-9">
-                  {formatTime(duration)}
-                </span>
-              </div>
-
-              {/* Replay Button */}
+            <div className="flex items-center gap-2 px-3">
+              <Loader2 className="w-4 h-4 animate-spin text-[#4A3F47]" />
+              <span className="text-xs text-[#4A3F47]">음성 생성 중...</span>
+            </div>
+          ) : (
+            <>
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={handleReplayAudio}
-                className="rounded-full w-8 h-8 hover:bg-white/60 text-[#7A6F76] ml-1"
+                onClick={isPlaying ? handlePauseAudio : handlePlayAudio}
+                className="rounded-full w-8 h-8 hover:bg-white/40 text-[#4A3F47]"
               >
-                <RotateCcw className="w-4 h-4" />
+                {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
               </Button>
-            </div>
-          ) : (
-            <Button
-              variant="ghost"
-              onClick={handlePlayAudio}
-              className="rounded-full bg-white/40 hover:bg-white/60 border border-white/40 text-[#4A3F47] gap-2 px-4 shadow-sm"
-            >
-              <Play className="w-4 h-4" />
-              <span className="text-sm font-medium">음성 재생</span>
-            </Button>
+
+              {pages[currentPage]?.audioUrl && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] tabular-nums opacity-70 w-8 text-right text-[#4A3F47]">{formatTime(currentTime)}</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={duration || 100}
+                      value={currentTime}
+                      onChange={handleSeek}
+                      className="w-20 h-1 bg-black/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#4A3F47]"
+                    />
+                    <span className="text-[10px] tabular-nums opacity-70 w-8 text-[#4A3F47]">{formatTime(duration)}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleReplayAudio}
+                    className="rounded-full w-6 h-6 hover:bg-white/40 text-[#4A3F47] opacity-70"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </Button>
+                </>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex items-center justify-center relative overflow-hidden">
-        <div className="relative w-full h-full flex items-center justify-center p-4 md:p-8">
-          {/* Book Pages */}
-          <div className="relative w-full h-full flex items-center justify-center max-w-6xl">
-            <AnimatePresence initial={false} custom={direction} mode="wait">
+      {/* Book Container */}
+      <div className="relative w-full max-w-6xl h-[80vh] flex items-center justify-center p-4">
+        <div className="relative w-full h-full max-h-[700px] aspect-[1.5/1] flex items-center justify-center">
+
+          {/* Back Cover / Binding (Extended to wrap pages) */}
+          <div
+            className="absolute bg-[#5D4037] rounded-lg shadow-2xl border-4 border-[#3E2723]"
+            style={{
+              top: -20, bottom: -20,
+              left: 10 - leftStackWidth,
+              right: 10 - rightStackWidth,
+              transition: 'all 0.5s ease',
+              boxShadow: '0 20px 50px -12px rgba(0, 0, 0, 0.5)'
+            }}
+          ></div>
+
+          {/* Page Stacks (Visual Depth with Texture) */}
+          {/* Left Stack */}
+          <div
+            className="absolute top-0 bottom-0 border-l border-gray-300"
+            style={{
+              left: -leftStackWidth,
+              width: leftStackWidth,
+              background: 'repeating-linear-gradient(90deg, #f5f5f5, #f5f5f5 1px, #e0e0e0 2px, #e0e0e0 3px)',
+              boxShadow: 'inset -2px 0 5px rgba(0,0,0,0.1)',
+              zIndex: 0
+            }}
+          />
+          {/* Right Stack */}
+          <div
+            className="absolute top-0 bottom-0 border-r border-gray-300"
+            style={{
+              right: -rightStackWidth,
+              width: rightStackWidth,
+              background: 'repeating-linear-gradient(90deg, #f5f5f5, #f5f5f5 1px, #e0e0e0 2px, #e0e0e0 3px)',
+              boxShadow: 'inset 2px 0 5px rgba(0,0,0,0.1)',
+              zIndex: 0
+            }}
+          />
+
+          {/* Main Book Area (3D Context) */}
+          <div className="relative w-full h-full flex transform-style-3d perspective-[2000px]">
+
+            {/* Static Layer (Underneath) */}
+            <div className="absolute inset-0 flex z-10">
+              {/* Static Left Page */}
+              <div className="w-1/2 h-full border-r border-[#E0E0E0] bg-[#FDFBF7]">
+                {flippingState === 'prev'
+                  ? renderPageFace(currentPage - 1, 'left') // Target Left
+                  : renderPageFace(currentPage, 'left')     // Current Left
+                }
+              </div>
+              {/* Static Right Page */}
+              <div className="w-1/2 h-full bg-[#FDFBF7]">
+                {flippingState === 'next'
+                  ? renderPageFace(currentPage + 1, 'right') // Target Right
+                  : renderPageFace(currentPage, 'right')     // Current Right
+                }
+              </div>
+            </div>
+
+            {/* Flipping Layer */}
+            {flippingState !== 'idle' && (
               <motion.div
-                key={`page-${currentPage}`}
+                key={flippingState === 'next' ? currentPage : currentPage - 1}
                 custom={direction}
-                variants={pageVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{
-                  duration: 0.5,
-                  ease: "easeInOut"
-                }}
-                className="flex flex-col lg:flex-row gap-6 lg:gap-8 w-full items-center"
-                style={{ transformStyle: 'preserve-3d' }}
+                variants={flipVariants}
+                initial="initial"
+                animate="animate"
+                onAnimationComplete={onFlipComplete}
+                className="absolute left-1/2 top-0 bottom-0 w-1/2 origin-left transform-style-3d"
+                style={{ backfaceVisibility: 'visible' }} // Important for 3D flip
               >
-                {/* Image */}
-                <div className="w-full lg:w-1/2 aspect-square overflow-hidden rounded-3xl shadow-[0_12px_48px_rgba(176,123,172,0.2)] border border-white/40">
-                  <img
-                    src={currentPageData.imageUrl || placeholderImage}
-                    alt={`Page ${currentPageData.pageNo}`}
-                    className="w-full h-full object-cover"
-                  />
+                {/* Front Face (Visible at 0deg) */}
+                <div
+                  className="absolute inset-0 w-full h-full backface-hidden"
+                  style={{ backfaceVisibility: 'hidden' }}
+                >
+                  {/* Use renderBlankFace for cleaner transition */}
+                  {renderBlankFace('right')}
+
+                  {/* Shadow overlay when flipping */}
+                  <div className="absolute inset-0 bg-black/5 pointer-events-none"></div>
                 </div>
-                {/* Text */}
-                <div className="w-full lg:w-1/2 aspect-square relative flex items-center justify-center px-6 lg:px-8 bg-white/50 backdrop-blur-xl border border-white/40 rounded-3xl shadow-[0_12px_48px_rgba(176,123,172,0.15),inset_0_1px_0_rgba(255,255,255,0.6)]">
-                  <p className="text-[#1a1a1a] text-xl lg:text-2xl leading-relaxed text-center">
-                    {currentPageData.text}
-                  </p>
-                  <span className="absolute bottom-2 right-6 lg:bottom-3 lg:right-8 text-[#7A6F76]/40 text-sm">
-                    {currentPageData.pageNo}
-                  </span>
+
+                {/* Back Face (Visible at -180deg) */}
+                <div
+                  className="absolute inset-0 w-full h-full backface-hidden"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)'
+                  }}
+                >
+                  {/* Use renderBlankFace for cleaner transition */}
+                  {renderBlankFace('left')}
+
+                  {/* Shadow overlay when flipping */}
+                  <div className="absolute inset-0 bg-black/5 pointer-events-none"></div>
                 </div>
               </motion.div>
-            </AnimatePresence>
+            )}
+
+            {/* Spine Shadow Overlay (Center) */}
+            <div className="absolute left-1/2 top-0 bottom-0 w-12 -ml-6 bg-gradient-to-r from-transparent via-black/20 to-transparent z-40 pointer-events-none mix-blend-multiply"></div>
+
+            {/* Click Zones */}
+            <div
+              className="absolute top-0 left-0 w-1/6 h-full cursor-pointer z-50 hover:bg-black/5 transition-colors"
+              onClick={handlePrevPage}
+              title="이전 페이지"
+            />
+            <div
+              className="absolute top-0 right-0 w-1/6 h-full cursor-pointer z-50 hover:bg-black/5 transition-colors"
+              onClick={handleNextPage}
+              title="다음 페이지"
+            />
           </div>
         </div>
       </div>
 
-      {/* Bottom Controls */}
-      <div className="flex-shrink-0 pb-4 md:pb-6 px-4 md:px-8 flex items-center justify-between">
-        {/* Previous Button */}
+      {/* Bottom Navigation (Visual Only) */}
+      <div className="absolute bottom-6 flex items-center gap-6 z-20">
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
           onClick={handlePrevPage}
-          disabled={currentPage === 0}
-          className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/60 backdrop-blur-md hover:bg-white/80 text-[#4A3F47] disabled:opacity-30 disabled:cursor-not-allowed shadow-[0_4px_16px_rgba(176,123,172,0.15)] border border-white/40"
+          disabled={currentPage === 0 && flippingState === 'idle'}
+          className="rounded-full border-[#4A3F47]/30 text-[#4A3F47] hover:bg-[#4A3F47]/10 disabled:opacity-30"
         >
-          <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
+          <ChevronLeft className="w-6 h-6" />
         </Button>
-
-        {/* Page Counter - Center */}
-        <p className="text-[#7A6F76]/60 text-sm md:text-base">
-          Page {currentPage + 1} of {pages.length}
-        </p>
-
-        {/* Next Button */}
+        <span className="text-[#4A3F47] font-serif tracking-widest text-sm">
+          {currentPage + 1} / {pages.length}
+        </span>
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
           onClick={handleNextPage}
-          disabled={currentPage >= pages.length - 1}
-          className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/60 backdrop-blur-md hover:bg-white/80 text-[#4A3F47] disabled:opacity-30 disabled:cursor-not-allowed shadow-[0_4px_16px_rgba(176,123,172,0.15)] border border-white/40"
+          disabled={currentPage === pages.length - 1 && flippingState === 'idle'}
+          className="rounded-full border-[#4A3F47]/30 text-[#4A3F47] hover:bg-[#4A3F47]/10 disabled:opacity-30"
         >
-          <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
+          <ChevronRight className="w-6 h-6" />
         </Button>
       </div>
     </div>
