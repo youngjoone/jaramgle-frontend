@@ -40,6 +40,9 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [voicePreset, setVoicePreset] = useState<string>('default');
+  const [autoPlay, setAutoPlay] = useState<boolean>(false); // 현재 페이지 반복 재생
+  const [autoFlip, setAutoFlip] = useState<boolean>(false); // 음성 끝나면 다음 페이지 이동
+  const [pendingAutoPlay, setPendingAutoPlay] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const formatTime = (seconds: number) => {
@@ -75,6 +78,14 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       const saved = localStorage.getItem('voicePreset');
       if (saved) {
         setVoicePreset(saved);
+      }
+      const savedAutoPlay = localStorage.getItem('storybookAutoPlay');
+      if (savedAutoPlay) {
+        setAutoPlay(savedAutoPlay === 'true');
+      }
+      const savedAutoFlip = localStorage.getItem('storybookAutoFlip');
+      if (savedAutoFlip) {
+        setAutoFlip(savedAutoFlip === 'true');
       }
     } catch {
       // ignore
@@ -253,6 +264,17 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     setFlippingState('idle');
   };
 
+  // When auto-play requested, try to play on the new page after flip completes
+  // Auto-play hook: wait after page change then play
+  useEffect(() => {
+    if (!autoPlay || !pendingAutoPlay) return;
+    const timer = setTimeout(() => {
+      handlePlayAudio();
+      setPendingAutoPlay(false);
+    }, 1500); // allow assets to settle
+    return () => clearTimeout(timer);
+  }, [currentPage, autoPlay, pendingAutoPlay]); // handlePlayAudio defined later in scope
+
   // Helper to render a single page face
   const renderPageFace = (pageIndex: number, side: 'left' | 'right') => {
     const page = pages[pageIndex];
@@ -332,64 +354,94 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   const currentPageData = pages[currentPage];
 
   // Audio Handlers
+  const handleToggleAutoPlay = () => {
+    setAutoPlay((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('storybookAutoPlay', String(next));
+      } catch {
+        // ignore storage errors
+      }
+      if (!next) {
+        setPendingAutoPlay(false);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleAutoFlip = () => {
+    setAutoFlip((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('storybookAutoFlip', String(next));
+      } catch {
+        // ignore storage errors
+      }
+      if (!next) {
+        setPendingAutoPlay(false);
+      }
+      return next;
+    });
+  };
+
   const handlePlayAudio = async () => {
     if (!currentPageData) return;
 
+    const playExisting = async (url: string) => {
+      console.log('🎵 Playing audio:', url);
+
+      const audio = audioRef.current ?? new Audio(url);
+      if (!audioRef.current) {
+        audioRef.current = audio;
+      }
+
+      // (Re)bind handlers to reflect latest toggle states
+      audio.onerror = (e) => {
+        console.error('❌ Audio loading error:', e);
+        alert('오디오 파일을 불러올 수 없습니다.');
+      };
+
+      audio.onloadedmetadata = () => {
+        setDuration(audio.duration);
+      };
+
+      audio.ontimeupdate = () => {
+        setCurrentTime(audio.currentTime);
+      };
+
+      audio.onended = () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+        if (autoPlay) {
+          setPendingAutoPlay(true); // repeat same page after delay
+        }
+        if (autoFlip && currentPage < pages.length - 1) {
+          handleNextPage();
+        }
+      };
+
+      audio.onpause = () => setIsPlaying(false);
+      audio.onplay = () => setIsPlaying(true);
+
+      // If different source, update it
+      if (!audio.src.endsWith(url)) {
+        console.log('🔄 Updating audio source');
+        audio.src = url;
+      }
+      try {
+        console.log('▶️ Attempting to play audio...');
+        await audio.play();
+        setIsPlaying(true);
+        console.log('✅ Audio playing successfully');
+      } catch (err) {
+        console.error("❌ Audio playback failed:", err);
+        alert(`재생 실패: ${err}`);
+      }
+    };
+
     // If audio already exists, play it
     if (currentPageData.audioUrl) {
-      console.log('🎵 Playing existing audio:', currentPageData.audioUrl);
-
-      if (audioRef.current) {
-        // If different source, update it
-        if (!audioRef.current.src.endsWith(currentPageData.audioUrl)) {
-          console.log('🔄 Updating audio source');
-          audioRef.current.src = currentPageData.audioUrl;
-        }
-        try {
-          console.log('▶️ Attempting to play audio...');
-          await audioRef.current.play();
-          setIsPlaying(true);
-          console.log('✅ Audio playing successfully');
-        } catch (err) {
-          console.error("❌ Audio playback failed:", err);
-          alert(`재생 실패: ${err}`);
-        }
-      } else {
-        // Create audio element
-        console.log('🆕 Creating new Audio element');
-        const audio = new Audio(currentPageData.audioUrl);
-
-        audio.onerror = (e) => {
-          console.error('❌ Audio loading error:', e);
-          alert('오디오 파일을 불러올 수 없습니다.');
-        };
-
-        audio.onloadedmetadata = () => {
-          setDuration(audio.duration);
-        };
-
-        audio.ontimeupdate = () => {
-          setCurrentTime(audio.currentTime);
-        };
-
-        audio.onended = () => {
-          setIsPlaying(false);
-          setCurrentTime(0);
-        };
-
-        audio.onpause = () => setIsPlaying(false);
-        audio.onplay = () => setIsPlaying(true);
-
-        audioRef.current = audio;
-        try {
-          console.log('▶️ Attempting to play new audio...');
-          await audio.play();
-          console.log('✅ Audio playing successfully');
-        } catch (err) {
-          console.error("❌ Audio playback failed:", err);
-          alert(`재생 실패: ${err}`);
-        }
-      }
+      await playExisting(currentPageData.audioUrl);
       return;
     }
 
@@ -426,35 +478,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
         ));
 
         // Play immediately
-        console.log('🆕 Creating Audio element for generated audio');
-        const audio = new Audio(newAudioUrl!);
-
-        audio.onerror = (e) => {
-          console.error('❌ Audio loading error:', e);
-          alert('생성된 오디오 파일을 불러올 수 없습니다.');
-        };
-
-        audio.onloadedmetadata = () => {
-          setDuration(audio.duration);
-        };
-
-        audio.ontimeupdate = () => {
-          setCurrentTime(audio.currentTime);
-        };
-
-        audio.onended = () => {
-          setIsPlaying(false);
-          setCurrentTime(0);
-        };
-
-        audio.onpause = () => setIsPlaying(false);
-        audio.onplay = () => setIsPlaying(true);
-
-        audioRef.current = audio;
-
-        console.log('▶️ Attempting to play generated audio...');
-        await audio.play();
-        console.log('✅ Generated audio playing successfully');
+        await playExisting(newAudioUrl!);
       }
     } catch (err) {
       console.error("❌ Audio generation failed:", err);
@@ -537,50 +561,91 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
           </div>
         </div>
 
-        {/* Audio Controls (Floating) */}
-        <div className="flex items-center gap-3 bg-white/40 backdrop-blur-md rounded-full p-2 pr-4 border border-white/40 shadow-lg">
-          {isGeneratingAudio ? (
-            <div className="flex items-center gap-2 px-3">
-              <Loader2 className="w-4 h-4 animate-spin text-[#4A3F47]" />
-              <span className="text-xs text-[#4A3F47]">음성 생성 중...</span>
-            </div>
-          ) : (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={isPlaying ? handlePauseAudio : handlePlayAudio}
-                className="rounded-full w-8 h-8 hover:bg-white/40 text-[#4A3F47]"
-              >
-                {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
-              </Button>
+        {/* Controls (Floating) */}
+        <div className="flex items-center gap-2 md:gap-3">
+          {/* Auto Play Toggle */}
+          <div className="flex items-center gap-2 bg-white/40 backdrop-blur-md rounded-full px-3 py-2 border border-white/40 shadow-lg">
+            <button
+              onClick={handleToggleAutoPlay}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                autoPlay ? 'bg-[#4A3F47]' : 'bg-[#d7d7d7]'
+              }`}
+              aria-pressed={autoPlay}
+              aria-label="연속 재생"
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  autoPlay ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className="text-xs text-[#4A3F47]">{autoPlay ? '연속 재생 ON' : '연속 재생 OFF'}</span>
+          </div>
 
-              {pages[currentPage]?.audioUrl && (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] tabular-nums opacity-70 w-8 text-right text-[#4A3F47]">{formatTime(currentTime)}</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={duration || 100}
-                      value={currentTime}
-                      onChange={handleSeek}
-                      className="w-20 h-1 bg-black/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#4A3F47]"
-                    />
-                    <span className="text-[10px] tabular-nums opacity-70 w-8 text-[#4A3F47]">{formatTime(duration)}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleReplayAudio}
-                    className="rounded-full w-6 h-6 hover:bg-white/40 text-[#4A3F47] opacity-70"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                  </Button>
-                </>
-              )}
-            </>
-          )}
+          {/* Auto Flip Toggle */}
+          <div className="flex items-center gap-2 bg-white/40 backdrop-blur-md rounded-full px-3 py-2 border border-white/40 shadow-lg">
+            <button
+              onClick={handleToggleAutoFlip}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                autoFlip ? 'bg-[#4A3F47]' : 'bg-[#d7d7d7]'
+              }`}
+              aria-pressed={autoFlip}
+              aria-label="자동 넘김"
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  autoFlip ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className="text-xs text-[#4A3F47]">{autoFlip ? '자동 넘김 ON' : '자동 넘김 OFF'}</span>
+          </div>
+
+          {/* Audio Controls */}
+          <div className="flex items-center gap-3 bg-white/40 backdrop-blur-md rounded-full p-2 pr-4 border border-white/40 shadow-lg">
+            {isGeneratingAudio ? (
+              <div className="flex items-center gap-2 px-3">
+                <Loader2 className="w-4 h-4 animate-spin text-[#4A3F47]" />
+                <span className="text-xs text-[#4A3F47]">음성 생성 중...</span>
+              </div>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={isPlaying ? handlePauseAudio : handlePlayAudio}
+                  className="rounded-full w-8 h-8 hover:bg-white/40 text-[#4A3F47]"
+                >
+                  {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                </Button>
+
+                {pages[currentPage]?.audioUrl && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] tabular-nums opacity-70 w-8 text-right text-[#4A3F47]">{formatTime(currentTime)}</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={duration || 100}
+                        value={currentTime}
+                        onChange={handleSeek}
+                        className="w-20 h-1 bg-black/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#4A3F47]"
+                      />
+                      <span className="text-[10px] tabular-nums opacity-70 w-8 text-[#4A3F47]">{formatTime(duration)}</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleReplayAudio}
+                      className="rounded-full w-6 h-6 hover:bg-white/40 text-[#4A3F47] opacity-70"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
