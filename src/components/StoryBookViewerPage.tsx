@@ -521,7 +521,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       aria-label={`${storybook.title} 동화책 뷰어`}
     >
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-3 md:p-6 flex items-center justify-between z-20">
+      <div className="absolute top-0 left-0 right-0 p-3 md:p-6 flex items-center justify-between z-20 bg-white/40 backdrop-blur-2xl border-b border-white/40 shadow-[0_4px_24px_rgba(176,123,172,0.08)]">
         <div className="flex items-center gap-2 md:gap-4">
           <Button
             variant="ghost"
