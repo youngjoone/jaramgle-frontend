@@ -22,6 +22,7 @@ const ageGroups = ["0-3세", "4-6세", "7-9세", "10-12세"];
 const genres = ["판타지", "모험", "교육", "자장가", "SF", "동화"];
 const lengths = ["10페이지", "15페이지", "20페이지"];
 const languages = ["한국어", "English", "日本語", "Français", "Español", "Deutsch", "中文"];
+const translationLanguages = ["선택 안 함", ...languages];
 const learningGoals = ["과학", "수학", "영어", "한글", "역사", "자연", "예술", "생활습관"];
 
 const elementPresets = [
@@ -150,13 +151,14 @@ export function CreatePage() {
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<number[]>([]);
   const [selectedArtStyle, setSelectedArtStyle] = useState<string | null>("수채화 꿈");
-  const [voicePreset, setVoicePreset] = useState<string>('default');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [requiredElementsText, setRequiredElementsText] = useState('');
-  const [globalCharacters, setGlobalCharacters] = useState<CharacterCard[]>([]);
-  const [myCharacters, setMyCharacters] = useState<CharacterCard[]>([]);
-  const [isLoadingCharacters, setIsLoadingCharacters] = useState(false);
+const [voicePreset, setVoicePreset] = useState<string>('default');
+const [isGenerating, setIsGenerating] = useState(false);
+const [progress, setProgress] = useState(0);
+const [requiredElementsText, setRequiredElementsText] = useState('');
+const [globalCharacters, setGlobalCharacters] = useState<CharacterCard[]>([]);
+const [myCharacters, setMyCharacters] = useState<CharacterCard[]>([]);
+const [isLoadingCharacters, setIsLoadingCharacters] = useState(false);
+  const [translationLanguage, setTranslationLanguage] = useState('선택 안 함');
 
   // 교훈 관련 상태
   const [selectedMoral, setSelectedMoral] = useState<string | null>(null);
@@ -339,6 +341,9 @@ export function CreatePage() {
       "中文": "ZH"
     };
     const languageCode = languageMap[selectedLanguage] || "KO";
+    const translationCode = translationLanguage === '선택 안 함'
+      ? undefined
+      : (languageMap[translationLanguage] || undefined);
 
     const moralText = isCustomMoral ? customMoralText.trim() : (selectedMoral || "").trim();
     const requiredElements = parseRequiredElements();
@@ -351,6 +356,9 @@ export function CreatePage() {
       language: languageCode,
       character_ids: characterIds,
     };
+    if (translationCode) {
+      payload.translation_language = translationCode;
+    }
 
     if (selectedArtStyle) {
       payload.art_style = selectedArtStyle;
@@ -472,6 +480,29 @@ export function CreatePage() {
                 </Button>
               ))}
             </div>
+          </div>
+
+          {/* Translation Language */}
+          <div>
+            <label className="text-sm text-[#1A1A1A] font-semibold mb-3 block">번역 언어 (선택)</label>
+            <div className="flex flex-wrap gap-2">
+              {translationLanguages.map((language) => (
+                <Button
+                  key={language}
+                  variant="outline"
+                  size="sm"
+                  className={`rounded-full px-6 transition-all duration-300 ${
+                    translationLanguage === language
+                      ? 'bg-[#4FC3F7]/10 text-[#0288D1] border-[#4FC3F7]/40'
+                      : 'bg-white border border-[#E0E0E0] text-[#1A1A1A] hover:bg-[#F5F5F5] hover:border-[#4FC3F7]/30'
+                  }`}
+                  onClick={() => setTranslationLanguage(language)}
+                >
+                  {language}
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs text-[#757575] mt-2">선택 안 함을 선택하면 번역을 요청하지 않습니다.</p>
           </div>
 
           {/* Learning Goals */}

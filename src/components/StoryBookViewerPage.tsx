@@ -44,6 +44,10 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   const [autoFlip, setAutoFlip] = useState<boolean>(false); // 음성 끝나면 다음 페이지 이동
   const [pendingAutoPlay, setPendingAutoPlay] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [translationMap, setTranslationMap] = useState<Record<number, string>>({});
+  const [translatedTitle, setTranslatedTitle] = useState<string | null>(null);
+  const [translationLanguage, setTranslationLanguage] = useState<string | null>(null);
+  const [showTranslation, setShowTranslation] = useState<boolean>(false);
 
   const formatTime = (seconds: number) => {
     if (!seconds) return "0:00";
@@ -94,9 +98,35 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
 
   useEffect(() => {
     let mounted = true;
+    const applyTranslation = (translation: any, tl?: string) => {
+      if (!translation || typeof translation !== 'object') return;
+      const map: Record<number, string> = {};
+      if (Array.isArray(translation.pages)) {
+        translation.pages.forEach((p: any, idx: number) => {
+          const pageNo = p.page ?? p.pageNo ?? p.page_no;
+          if (pageNo != null && p.text) {
+            map[Number(pageNo)] = p.text;
+          }
+          // 인덱스 기반 예비 매핑(페이지 번호가 누락된 경우 대비)
+          if (p.text) {
+            map[idx + 1] = map[idx + 1] || p.text;
+          }
+        });
+      }
+      if (!mounted) return;
+      setTranslationMap(map);
+      setTranslatedTitle(translation.title || null);
+      // translationLanguage가 비어 있어도 번역본이 존재하면 기본값을 채워 토글이 비활성화되지 않도록 처리
+      const resolvedLang = tl || (translation.language as string) || 'TRANSLATION';
+      setTranslationLanguage(resolvedLang);
+    };
     const load = async () => {
       setIsLoading(true);
       setError(null);
+      setTranslationMap({});
+      setTranslatedTitle(null);
+      setTranslationLanguage(null);
+      setShowTranslation(false);
       try {
         // 공유 피드(shareSlug만 있는 카드)인 경우, 공개 상세 API 사용
         if (storybook.id <= 0 && storybook.shareSlug) {
@@ -106,6 +136,9 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
               title: string;
               pages?: any[];
               storybookPages?: any[];
+              translation?: any;
+              translationLanguage?: string;
+              translation_language?: string;
             };
             storybookPages?: any[];
           }>(`/public/shared-stories/${storybook.shareSlug}`);
@@ -137,9 +170,9 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
 
           const chosen = (sbPages && sbPages.length > 0 ? sbPages : basePages);
           const sorted = chosen
-            .map((p: any) => ({
+            .map((p: any, idx: number) => ({
               id: p.id || 0,
-              pageNo: p.pageNumber ?? p.pageNo ?? p.page ?? 0,
+              pageNo: p.pageNumber ?? p.pageNo ?? p.page ?? (idx + 1),
               text: p.text,
               imageUrl: normalizeImage(p.imageUrl || p.image_url || null),
               audioUrl: normalizeAudio(p.audioUrl),
@@ -147,6 +180,10 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
             .sort((a: any, b: any) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
           setPages(sorted);
           setCurrentPage(0);
+          const sharedTL = detail.story.translationLanguage
+            || (detail.story as any).translation_language
+            || (detail.story.translation as any)?.language;
+          applyTranslation(detail.story.translation, sharedTL as string | undefined);
           return;
         }
 
@@ -163,9 +200,9 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
 
           if (mounted && sbPages && sbPages.length > 0) {
             const sortedSb = sbPages
-              .map((p) => ({
+              .map((p, idx) => ({
                 id: p.id,
-                pageNo: p.pageNumber ?? 0,
+                pageNo: p.pageNumber ?? (idx + 1),
                 text: p.text,
                 imageUrl: normalizeImage(p.imageUrl || (p as any).image_url || null),
                 audioUrl: normalizeAudio(p.audioUrl),
@@ -174,6 +211,17 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
             setPages(sortedSb);
             setCurrentPage(0);
             setIsLoading(false);
+            try {
+              const detail = await apiFetch<any>(`/stories/${storybook.id}`);
+              if (mounted && detail) {
+                const tl = detail.translationLanguage
+                  || detail.translation_language
+                  || (detail.translation as any)?.language;
+                applyTranslation(detail.translation, tl as string | undefined);
+              }
+            } catch (e) {
+              console.warn("번역 정보 조회 실패", e);
+            }
             return;
           }
         } catch (e) {
@@ -186,9 +234,9 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
         const detail = await apiFetch<{ pages?: any[] }>(`/stories/${storybook.id}`);
         if (!mounted) return;
         const sorted = (detail.pages || [])
-          .map((p: any) => ({
+          .map((p: any, idx: number) => ({
             id: p.id || 0, // Fallback ID, might fail audio gen if 0
-            pageNo: p.pageNo ?? p.page ?? 0,
+            pageNo: p.pageNo ?? p.page ?? (idx + 1),
             text: p.text,
             imageUrl: normalizeImage(p.imageUrl || p.image_url || null),
             audioUrl: null,
@@ -196,6 +244,10 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
           .sort((a: any, b: any) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
         setPages(sorted);
         setCurrentPage(0);
+        const tl = (detail as any).translationLanguage
+          || (detail as any).translation_language
+          || ((detail as any).translation as any)?.language;
+        applyTranslation((detail as any).translation, tl as string | undefined);
       } catch (err) {
         console.error("스토리 상세 불러오기 실패", err);
         if (mounted) setError("스토리 내용을 불러오지 못했습니다.");
@@ -281,6 +333,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     if (!page) return <div className="w-full h-full bg-[#FDFBF7]" />; // Empty/Cover
 
     const isImage = side === 'left';
+    const pageText = showTranslation && translationMap[page.pageNo] ? translationMap[page.pageNo] : page.text;
 
     return (
       <div className="w-full h-full relative overflow-hidden bg-[#FDFBF7]">
@@ -311,7 +364,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
         ) : (
           <div className="w-full h-full p-8 md:p-14 flex items-center justify-center">
             <div className="prose prose-lg md:prose-xl font-serif text-[#4E342E] leading-loose text-center whitespace-pre-wrap">
-              {page.text}
+              {pageText}
             </div>
             <div className="absolute bottom-4 right-6 text-[#8D6E63] font-serif text-sm opacity-60">
               {pageIndex * 2 + 2}
@@ -352,6 +405,17 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   }, [handleNextPage, handlePrevPage, onClose]);
 
   const currentPageData = pages[currentPage];
+  const langLabelMap: Record<string, string> = {
+    KO: '한국어',
+    EN: 'English',
+    JA: '日本語',
+    FR: 'Français',
+    ES: 'Español',
+    DE: 'Deutsch',
+    ZH: '中文',
+  };
+  const translationLabel = translationLanguage ? (langLabelMap[translationLanguage] || translationLanguage) : null;
+  const displayTitle = showTranslation && translatedTitle ? translatedTitle : storybook.title;
 
   // Audio Handlers
   const handleToggleAutoPlay = () => {
@@ -382,6 +446,13 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       }
       return next;
     });
+  };
+
+  const handleToggleTranslation = () => {
+    if (!translationLanguage || Object.keys(translationMap).length === 0) {
+      return;
+    }
+    setShowTranslation((prev) => !prev);
   };
 
   const handlePlayAudio = async () => {
@@ -556,13 +627,30 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
             <X className="w-6 h-6" />
           </Button>
           <div>
-            <h2 className="text-[#4A3F47] font-serif tracking-wide text-lg">{storybook.title}</h2>
+            <h2 className="text-[#4A3F47] font-serif tracking-wide text-lg">
+              {displayTitle}
+              {showTranslation && translatedTitle && <span className="ml-2 text-xs text-[#7A6F76]">(번역본)</span>}
+            </h2>
             <p className="text-[#7A6F76] text-xs">by {storybook.author}</p>
           </div>
         </div>
 
         {/* Controls (Floating) */}
         <div className="flex items-center gap-2 md:gap-3">
+          {/* Translation Toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={Object.keys(translationMap).length === 0}
+            onClick={handleToggleTranslation}
+            className={`rounded-full px-4 h-9 ${
+              showTranslation ? 'bg-white/70 text-[#4A3F47]' : 'bg-white/30 text-[#4A3F47]'
+            } border border-white/40 shadow`}
+          >
+            {showTranslation ? '원문 보기' : '번역본 보기'}
+            {translationLabel ? ` (${translationLabel})` : ''}
+          </Button>
+
           {/* Auto Play Toggle */}
           <div className="flex items-center gap-2 bg-white/40 backdrop-blur-md rounded-full px-3 py-2 border border-white/40 shadow-lg">
             <button
