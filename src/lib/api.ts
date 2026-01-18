@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuthStore } from '@/store';
+
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080/api";
 export const BACKEND_ORIGIN = API_BASE.replace(/\/api$/, "");
 
@@ -11,6 +13,8 @@ interface FetchOptions {
   headers?: Record<string, string>;
   retry?: boolean; // internal use to avoid infinite loop
 }
+
+let isRedirectingForAuth = false;
 
 async function refreshToken(): Promise<string | null> {
   try {
@@ -47,6 +51,16 @@ export async function apiFetch<T = any>(path: string, options: FetchOptions = {}
     const newToken = await refreshToken();
     if (newToken) {
       return apiFetch<T>(path, { ...options, retry: true });
+    }
+    if (typeof window !== "undefined" && !isRedirectingForAuth) {
+      isRedirectingForAuth = true;
+      try {
+        useAuthStore.getState().logout();
+      } catch {
+        // ignore
+      }
+      alert("세션이 만료되었습니다. 다시 로그인해 주세요.");
+      window.location.href = "/login";
     }
     throw new Error("Unauthorized");
   }
