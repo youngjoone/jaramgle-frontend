@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, X, Play, Pause, RotateCcw, Loader2 } from 'l
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, BACKEND_ORIGIN } from '@/lib/api';
+import Confetti from 'react-confetti';
 
 interface StoryPage {
   id: number; // pageId
@@ -26,7 +27,46 @@ interface StoryBookViewerPageProps {
   onClose: () => void;
 }
 
+interface QuizItem {
+  question: string;
+  options: string[];
+  answer: number;
+}
+
+// Crayon O Animation Component
+const CrayonO = () => (
+  <motion.svg
+    width="150"
+    height="150"
+    viewBox="0 0 100 100"
+    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none"
+    initial={{ opacity: 0, scale: 0.5 }}
+    animate={{ opacity: 1, scale: 1 }}
+    exit={{ opacity: 0, scale: 1.2 }}
+  >
+    <motion.path
+      d="M 50, 10 a 40,40 0 1,0 0,80 a 40,40 0 1,0 0,-80"
+      fill="none"
+      stroke="#FF5252"
+      strokeWidth="8"
+      strokeLinecap="round"
+      strokeDasharray="300"
+      strokeDashoffset="300"
+      animate={{ strokeDashoffset: 0 }}
+      transition={{ duration: 0.6, ease: "easeOut" }}
+      style={{ filter: "url(#crayon-texture)" }}
+    />
+    <defs>
+      <filter id="crayon-texture">
+        <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" result="noise" />
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" />
+      </filter>
+    </defs>
+  </motion.svg>
+);
+
 export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageProps) {
+  const [stage, setStage] = useState<'cover' | 'reading' | 'quiz'>('cover');
   const [currentPage, setCurrentPage] = useState(0);
   const [direction, setDirection] = useState(0);
   const [pages, setPages] = useState<StoryPage[]>([]);
@@ -48,6 +88,19 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   const [translatedTitle, setTranslatedTitle] = useState<string | null>(null);
   const [translationLanguage, setTranslationLanguage] = useState<string | null>(null);
   const [showTranslation, setShowTranslation] = useState<boolean>(false);
+  const [coverImage, setCoverImage] = useState<string | null>(null);
+  const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
+  const [quizIndex, setQuizIndex] = useState(0);
+  const [quizFeedback, setQuizFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [quizComplete, setQuizComplete] = useState(false);
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const formatTime = (seconds: number) => {
     if (!seconds) return "0:00";
@@ -127,6 +180,13 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       setTranslatedTitle(null);
       setTranslationLanguage(null);
       setShowTranslation(false);
+      setStage('cover');
+      setCoverImage(null);
+      setQuizzes([]);
+      setQuizIndex(0);
+      setQuizFeedback(null);
+      setQuizComplete(false);
+      setCurrentPage(0);
       try {
         // 공유 피드(shareSlug만 있는 카드)인 경우, 공개 상세 API 사용
         if (storybook.id <= 0 && storybook.shareSlug) {
@@ -139,6 +199,9 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
               translation?: any;
               translationLanguage?: string;
               translation_language?: string;
+              coverImageUrl?: string;
+              cover_image_url?: string;
+              quiz?: QuizItem[];
             };
             storybookPages?: any[];
           }>(`/public/shared-stories/${storybook.shareSlug}`);
@@ -180,6 +243,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
             .sort((a: any, b: any) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
           setPages(sorted);
           setCurrentPage(0);
+          setCoverImage(normalizeImage(detail.story.coverImageUrl || (detail.story as any).cover_image_url || null));
+          setQuizzes(detail.story.quiz || (detail.story as any).quiz || []);
           const sharedTL = detail.story.translationLanguage
             || (detail.story as any).translation_language
             || (detail.story.translation as any)?.language;
@@ -218,6 +283,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
                   || detail.translation_language
                   || (detail.translation as any)?.language;
                 applyTranslation(detail.translation, tl as string | undefined);
+                setCoverImage(normalizeImage(detail.coverImageUrl || detail.cover_image_url || null));
+                setQuizzes(detail.quiz || []);
               }
             } catch (e) {
               console.warn("번역 정보 조회 실패", e);
@@ -244,6 +311,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
           .sort((a: any, b: any) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
         setPages(sorted);
         setCurrentPage(0);
+        setCoverImage(normalizeImage((detail as any).coverImageUrl || (detail as any).cover_image_url || null));
+        setQuizzes((detail as any).quiz || []);
         const tl = (detail as any).translationLanguage
           || (detail as any).translation_language
           || ((detail as any).translation as any)?.language;
@@ -271,6 +340,14 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     setDuration(0);
   }, [currentPage]);
 
+  // Stop audio when stage changes away from reading
+  useEffect(() => {
+    if (stage !== 'reading' && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [stage]);
+
   // Animation State
   const [flippingState, setFlippingState] = useState<'idle' | 'next' | 'prev'>('idle');
 
@@ -294,18 +371,48 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   };
 
   const handleNextPage = useCallback(() => {
-    if (currentPage < pages.length - 1 && flippingState === 'idle') {
-      setDirection(1);
-      setFlippingState('next');
+    if (flippingState !== 'idle') return;
+    if (stage === 'cover') {
+      setStage('reading');
+      return;
     }
-  }, [currentPage, pages.length, flippingState]);
+    if (stage === 'quiz') {
+      return;
+    }
+    if (stage === 'reading') {
+      if (currentPage < pages.length - 1) {
+        setDirection(1);
+        setFlippingState('next');
+        return;
+      }
+      if (quizzes.length > 0) {
+        setStage('quiz');
+        setQuizIndex(0);
+        setQuizFeedback(null);
+        return;
+      }
+    }
+  }, [stage, flippingState, currentPage, pages.length, quizzes.length]);
 
   const handlePrevPage = useCallback(() => {
-    if (currentPage > 0 && flippingState === 'idle') {
+    if (flippingState !== 'idle') return;
+    if (stage === 'quiz') {
+      setStage('reading');
+      setCurrentPage(Math.max(pages.length - 1, 0));
+      setQuizFeedback(null);
+      setQuizComplete(false);
+      return;
+    }
+    if (stage === 'cover') return;
+    if (stage === 'reading') {
+      if (currentPage === 0) {
+        setStage('cover');
+        return;
+      }
       setDirection(-1);
       setFlippingState('prev');
     }
-  }, [currentPage, flippingState]);
+  }, [stage, flippingState, currentPage, pages.length]);
 
   const onFlipComplete = () => {
     if (flippingState === 'next') {
@@ -319,13 +426,13 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   // When auto-play requested, try to play on the new page after flip completes
   // Auto-play hook: wait after page change then play
   useEffect(() => {
-    if (!autoPlay || !pendingAutoPlay) return;
+    if (!autoPlay || !pendingAutoPlay || stage !== 'reading') return;
     const timer = setTimeout(() => {
       handlePlayAudio();
       setPendingAutoPlay(false);
     }, 1500); // allow assets to settle
     return () => clearTimeout(timer);
-  }, [currentPage, autoPlay, pendingAutoPlay]); // handlePlayAudio defined later in scope
+  }, [currentPage, autoPlay, pendingAutoPlay, stage]); // handlePlayAudio defined later in scope
 
   // Helper to render a single page face
   const renderPageFace = (pageIndex: number, side: 'left' | 'right') => {
@@ -392,6 +499,197 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     );
   };
 
+  const renderCover = () => {
+    const hasImage = !!coverImage;
+    return (
+      <div
+        className="relative h-full aspect-[0.75/1] max-h-[700px] flex items-center justify-center perspective-[2000px] group cursor-pointer"
+        onClick={handleNextPage}
+        title="클릭하거나 → 키로 펼치기"
+      >
+        {/* Book Cover Container */}
+        <div className="relative w-full h-full bg-[#5D4037] rounded-r-md rounded-l-sm shadow-2xl transform-style-3d transition-transform duration-500 group-hover:rotate-y-[-5deg] group-hover:translate-x-2">
+
+          {/* Spine (Left Edge) */}
+          <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-[#3E2723] via-[#5D4037] to-[#3E2723] rounded-l-sm z-20 shadow-[inset_-2px_0_5px_rgba(0,0,0,0.3)]"></div>
+
+          {/* Spine Highlight */}
+          <div className="absolute left-2 top-0 bottom-0 w-[1px] bg-white/10 z-20"></div>
+
+          {/* Front Cover Surface */}
+          <div className="absolute inset-0 left-12 bg-[#5D4037] rounded-r-md border-t-2 border-b-2 border-r-2 border-[#3E2723] flex flex-col items-center p-8 overflow-hidden">
+            {/* Leather Texture Overlay */}
+            <div className="absolute inset-0 opacity-20 pointer-events-none mix-blend-overlay"
+              style={{ backgroundImage: `url("https://www.transparenttextures.com/patterns/leather.png")` }}></div>
+
+            {/* Decorative Border Frame */}
+            <div className="absolute inset-4 border border-[#8D6E63]/30 rounded-sm pointer-events-none"></div>
+            <div className="absolute inset-6 border border-[#8D6E63]/20 rounded-sm pointer-events-none"></div>
+
+            {/* Content */}
+            <div className="relative z-10 w-full h-full flex flex-col items-center text-center">
+              <div className="mt-8 mb-2 text-xs uppercase tracking-[0.3em] text-[#D7CCC8]">Storybook</div>
+              <h1 className="text-3xl md:text-4xl font-serif font-bold text-[#EFEBE9] leading-tight drop-shadow-md px-4 break-keep">
+                {displayTitle}
+              </h1>
+              <div className="w-12 h-[1px] bg-[#D7CCC8]/50 my-6"></div>
+
+              {/* Cover Image Area */}
+              <div className="flex-1 w-full flex items-center justify-center p-4">
+                {hasImage ? (
+                  <div className="relative w-full max-w-[80%] aspect-[3/4] rounded-sm overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.3)] border-4 border-[#3E2723] bg-[#3E2723]">
+                    <img
+                      src={coverImage || placeholderImage}
+                      alt="표지"
+                      className="w-full h-full object-cover opacity-90 hover:opacity-100 transition-opacity"
+                    />
+                    {/* Inner Shadow */}
+                    <div className="absolute inset-0 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)] pointer-events-none"></div>
+                  </div>
+                ) : (
+                  <div className="w-full max-w-[80%] aspect-[3/4] rounded-sm border-2 border-dashed border-[#D7CCC8]/30 flex items-center justify-center text-[#D7CCC8]/50">
+                    <span className="text-sm">No Cover Image</span>
+                  </div>
+                )}
+              </div>
+
+
+            </div>
+          </div>
+
+          {/* Page Block (Right Edge Thickness) */}
+          <div className="absolute right-0 top-2 bottom-2 w-4 bg-[#FDFBF7] transform translate-x-full translate-z-[-2px] rounded-r-sm border-l border-gray-300"
+            style={{
+              background: 'repeating-linear-gradient(90deg, #f5f5f5, #f5f5f5 1px, #e0e0e0 2px, #e0e0e0 3px)',
+              transform: 'rotateY(90deg) translateX(-2px)',
+              transformOrigin: 'right center'
+            }}>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderQuiz = () => {
+    if (!quizzes.length) {
+      return (
+        <div className="flex items-center justify-center w-full h-full">
+          <div className="bg-white/70 rounded-xl p-8 text-[#4A3F47] shadow-lg border border-[#4A3F47]/10">
+            퀴즈가 준비되지 않았습니다.
+          </div>
+        </div>
+      );
+    }
+    const quiz = quizzes[quizIndex];
+    return (
+      <div className="relative w-full h-full flex items-center justify-center">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#F1F8E9] via-[#E8F5E9] to-[#C8E6C9]" />
+        <div className="relative z-10 w-full max-w-5xl bg-white/80 backdrop-blur-md border border-white/60 rounded-2xl shadow-2xl p-6 md:p-10 flex flex-col lg:flex-row gap-8">
+          <div className="lg:w-1/3">
+            <div className="text-xs uppercase tracking-[0.3em] text-[#7A6F76] mb-2">Quiz</div>
+            <h3 className="text-2xl font-serif text-[#4A3F47] leading-snug">{displayTitle}</h3>
+            <p className="text-sm text-[#7A6F76] mt-2">문제를 풀고 이야기를 마무리해 보세요.</p>
+            <div className="mt-6 text-sm text-[#4A3F47]">
+              {quizIndex + 1} / {quizzes.length}
+            </div>
+          </div>
+          <div className="flex-1 bg-[#FDFBF7] rounded-xl border border-[#E0D5C8] shadow-inner p-6">
+            <h4 className="text-lg font-semibold text-[#4A3F47] mb-4 leading-relaxed">{quiz.question}</h4>
+            <div className="grid gap-3 relative">
+              <AnimatePresence>
+                {quizFeedback === 'correct' && <CrayonO />}
+              </AnimatePresence>
+              {quiz.options.map((opt, idx) => {
+                const isCorrect = quizFeedback === 'correct' && idx === quiz.answer;
+                const isWrong = quizFeedback === 'wrong' && idx === quiz.answer;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      const answer = idx === quiz.answer ? 'correct' : 'wrong';
+                      setQuizFeedback(answer);
+                      if (answer === 'correct') {
+                        setTimeout(() => {
+                          if (quizIndex < quizzes.length - 1) {
+                            setQuizIndex((prev) => prev + 1);
+                            setQuizFeedback(null);
+                          } else {
+                            setQuizComplete(true);
+                          }
+                        }, 900);
+                      } else {
+                        setTimeout(() => setQuizFeedback(null), 900);
+                      }
+                    }}
+                    className={`text-left px-4 py-3 rounded-lg border transition-all ${quizFeedback
+                      ? idx === quiz.answer
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-[#E0D5C8] bg-white/60'
+                      : 'border-[#E0D5C8] bg-white hover:border-[#4A3F47] hover:bg-white/80'
+                      }`}
+                    disabled={!!quizFeedback}
+                  >
+                    <span className="font-medium text-[#4A3F47]">{opt}</span>
+                    {isCorrect && <span className="ml-2 text-sm text-green-600">정답!</span>}
+                    {isWrong && <span className="ml-2 text-sm text-red-500">오답!</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {quizComplete && (
+            <>
+              <Confetti
+                width={windowSize.width}
+                height={windowSize.height}
+                recycle={false}
+                numberOfPieces={500}
+                gravity={0.2}
+              />
+              <motion.div
+                className="absolute inset-0 bg-black/40 flex items-center justify-center z-20"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <motion.div
+                  className="bg-white rounded-2xl shadow-2xl p-8 w-96 text-center space-y-4"
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                >
+                  <h3 className="text-xl font-semibold text-[#4A3F47]">퀴즈 완료!</h3>
+                  <p className="text-sm text-[#7A6F76]">이야기의 모든 문제를 풀었어요.</p>
+                  <div className="flex justify-center gap-3 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setStage('cover');
+                        setCurrentPage(0);
+                        setQuizIndex(0);
+                        setQuizFeedback(null);
+                        setQuizComplete(false);
+                      }}
+                      className="text-[#4A3F47] border-[#4A3F47]/30"
+                    >
+                      처음으로
+                    </Button>
+                    <Button onClick={onClose} className="bg-[#4A3F47] hover:bg-[#3A2F35]">
+                      목록으로
+                    </Button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
   // Global keyboard event listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -404,7 +702,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNextPage, handlePrevPage, onClose]);
 
-  const currentPageData = pages[currentPage];
+  const currentPageData = stage === 'reading' ? pages[currentPage] : null;
   const langLabelMap: Record<string, string> = {
     KO: '한국어',
     EN: 'English',
@@ -456,7 +754,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   };
 
   const handlePlayAudio = async () => {
-    if (!currentPageData) return;
+    if (stage !== 'reading' || !currentPageData) return;
 
     const playExisting = async (url: string) => {
       console.log('🎵 Playing audio:', url);
@@ -600,11 +898,20 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   }
 
   // Calculate stack thickness
-  const leftStackCount = currentPage;
-  const rightStackCount = pages.length - 1 - currentPage;
+  const leftStackCount = stage === 'reading' ? currentPage : 0;
+  const rightStackCount = stage === 'reading' ? pages.length - 1 - currentPage : 0;
   const maxStack = 5; // Visual cap
   const leftStackWidth = Math.min(leftStackCount, maxStack) * 4;
   const rightStackWidth = Math.min(rightStackCount, maxStack) * 4;
+
+  const progressLabel = stage === 'cover'
+    ? '표지'
+    : stage === 'quiz'
+      ? `퀴즈 ${quizIndex + 1} / ${quizzes.length || 1}`
+      : `${currentPage + 1} / ${pages.length}`;
+
+  const prevDisabled = stage === 'cover' || (stage === 'reading' && currentPage === 0 && flippingState === 'idle');
+  const nextDisabled = stage === 'quiz' || (stage === 'reading' && currentPage === pages.length - 1 && quizzes.length === 0 && flippingState === 'idle');
 
   return (
     <div
@@ -643,9 +950,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
             size="sm"
             disabled={Object.keys(translationMap).length === 0}
             onClick={handleToggleTranslation}
-            className={`rounded-full px-4 h-9 ${
-              showTranslation ? 'bg-white/70 text-[#4A3F47]' : 'bg-white/30 text-[#4A3F47]'
-            } border border-white/40 shadow`}
+            className={`rounded-full px-4 h-9 ${showTranslation ? 'bg-white/70 text-[#4A3F47]' : 'bg-white/30 text-[#4A3F47]'
+              } border border-white/40 shadow`}
           >
             {showTranslation ? '원문 보기' : '번역본 보기'}
             {translationLabel ? ` (${translationLabel})` : ''}
@@ -655,16 +961,14 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
           <div className="flex items-center gap-2 bg-white/40 backdrop-blur-md rounded-full px-3 py-2 border border-white/40 shadow-lg">
             <button
               onClick={handleToggleAutoPlay}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                autoPlay ? 'bg-[#4A3F47]' : 'bg-[#d7d7d7]'
-              }`}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${autoPlay ? 'bg-[#4A3F47]' : 'bg-[#d7d7d7]'
+                }`}
               aria-pressed={autoPlay}
               aria-label="연속 재생"
             >
               <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  autoPlay ? 'translate-x-5' : 'translate-x-1'
-                }`}
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${autoPlay ? 'translate-x-5' : 'translate-x-1'
+                  }`}
               />
             </button>
             <span className="text-xs text-[#4A3F47]">{autoPlay ? '연속 재생 ON' : '연속 재생 OFF'}</span>
@@ -674,16 +978,14 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
           <div className="flex items-center gap-2 bg-white/40 backdrop-blur-md rounded-full px-3 py-2 border border-white/40 shadow-lg">
             <button
               onClick={handleToggleAutoFlip}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                autoFlip ? 'bg-[#4A3F47]' : 'bg-[#d7d7d7]'
-              }`}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${autoFlip ? 'bg-[#4A3F47]' : 'bg-[#d7d7d7]'
+                }`}
               aria-pressed={autoFlip}
               aria-label="자동 넘김"
             >
               <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  autoFlip ? 'translate-x-5' : 'translate-x-1'
-                }`}
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${autoFlip ? 'translate-x-5' : 'translate-x-1'
+                  }`}
               />
             </button>
             <span className="text-xs text-[#4A3F47]">{autoFlip ? '자동 넘김 ON' : '자동 넘김 OFF'}</span>
@@ -739,122 +1041,128 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
 
       {/* Book Container */}
       <div className="relative w-full max-w-6xl h-[80vh] flex items-center justify-center p-4">
-        <div className="relative w-full h-full max-h-[700px] aspect-[1.5/1] flex items-center justify-center">
+        {stage === 'reading' ? (
+          <div className="relative w-full h-full max-h-[700px] aspect-[1.5/1] flex items-center justify-center">
 
-          {/* Back Cover / Binding (Extended to wrap pages) */}
-          <div
-            className="absolute bg-[#5D4037] rounded-lg shadow-2xl border-4 border-[#3E2723]"
-            style={{
-              top: -20, bottom: -20,
-              left: 10 - leftStackWidth,
-              right: 10 - rightStackWidth,
-              transition: 'all 0.5s ease',
-              boxShadow: '0 20px 50px -12px rgba(0, 0, 0, 0.5)'
-            }}
-          ></div>
+            {/* Back Cover / Binding (Extended to wrap pages) */}
+            <div
+              className="absolute bg-[#5D4037] rounded-lg shadow-2xl border-4 border-[#3E2723]"
+              style={{
+                top: -20, bottom: -20,
+                left: 10 - leftStackWidth,
+                right: 10 - rightStackWidth,
+                transition: 'all 0.5s ease',
+                boxShadow: '0 20px 50px -12px rgba(0, 0, 0, 0.5)'
+              }}
+            ></div>
 
-          {/* Page Stacks (Visual Depth with Texture) */}
-          {/* Left Stack */}
-          <div
-            className="absolute top-0 bottom-0 border-l border-gray-300"
-            style={{
-              left: -leftStackWidth,
-              width: leftStackWidth,
-              background: 'repeating-linear-gradient(90deg, #f5f5f5, #f5f5f5 1px, #e0e0e0 2px, #e0e0e0 3px)',
-              boxShadow: 'inset -2px 0 5px rgba(0,0,0,0.1)',
-              zIndex: 0
-            }}
-          />
-          {/* Right Stack */}
-          <div
-            className="absolute top-0 bottom-0 border-r border-gray-300"
-            style={{
-              right: -rightStackWidth,
-              width: rightStackWidth,
-              background: 'repeating-linear-gradient(90deg, #f5f5f5, #f5f5f5 1px, #e0e0e0 2px, #e0e0e0 3px)',
-              boxShadow: 'inset 2px 0 5px rgba(0,0,0,0.1)',
-              zIndex: 0
-            }}
-          />
+            {/* Page Stacks (Visual Depth with Texture) */}
+            {/* Left Stack */}
+            <div
+              className="absolute top-0 bottom-0 border-l border-gray-300"
+              style={{
+                left: -leftStackWidth,
+                width: leftStackWidth,
+                background: 'repeating-linear-gradient(90deg, #f5f5f5, #f5f5f5 1px, #e0e0e0 2px, #e0e0e0 3px)',
+                boxShadow: 'inset -2px 0 5px rgba(0,0,0,0.1)',
+                zIndex: 0
+              }}
+            />
+            {/* Right Stack */}
+            <div
+              className="absolute top-0 bottom-0 border-r border-gray-300"
+              style={{
+                right: -rightStackWidth,
+                width: rightStackWidth,
+                background: 'repeating-linear-gradient(90deg, #f5f5f5, #f5f5f5 1px, #e0e0e0 2px, #e0e0e0 3px)',
+                boxShadow: 'inset 2px 0 5px rgba(0,0,0,0.1)',
+                zIndex: 0
+              }}
+            />
 
-          {/* Main Book Area (3D Context) */}
-          <div className="relative w-full h-full flex transform-style-3d perspective-[2000px]">
+            {/* Main Book Area (3D Context) */}
+            <div className="relative w-full h-full flex transform-style-3d perspective-[2000px]">
 
-            {/* Static Layer (Underneath) */}
-            <div className="absolute inset-0 flex z-10">
-              {/* Static Left Page */}
-              <div className="w-1/2 h-full border-r border-[#E0E0E0] bg-[#FDFBF7]">
-                {flippingState === 'prev'
-                  ? renderPageFace(currentPage - 1, 'left') // Target Left
-                  : renderPageFace(currentPage, 'left')     // Current Left
-                }
+              {/* Static Layer (Underneath) */}
+              <div className="absolute inset-0 flex z-10">
+                {/* Static Left Page */}
+                <div className="w-1/2 h-full border-r border-[#E0E0E0] bg-[#FDFBF7]">
+                  {flippingState === 'prev'
+                    ? renderPageFace(currentPage - 1, 'left') // Target Left
+                    : renderPageFace(currentPage, 'left')     // Current Left
+                  }
+                </div>
+                {/* Static Right Page */}
+                <div className="w-1/2 h-full bg-[#FDFBF7]">
+                  {flippingState === 'next'
+                    ? renderPageFace(currentPage + 1, 'right') // Target Right
+                    : renderPageFace(currentPage, 'right')     // Current Right
+                  }
+                </div>
               </div>
-              {/* Static Right Page */}
-              <div className="w-1/2 h-full bg-[#FDFBF7]">
-                {flippingState === 'next'
-                  ? renderPageFace(currentPage + 1, 'right') // Target Right
-                  : renderPageFace(currentPage, 'right')     // Current Right
-                }
-              </div>
+
+              {/* Flipping Layer */}
+              {flippingState !== 'idle' && (
+                <motion.div
+                  key={flippingState === 'next' ? currentPage : currentPage - 1}
+                  custom={direction}
+                  variants={flipVariants}
+                  initial="initial"
+                  animate="animate"
+                  onAnimationComplete={onFlipComplete}
+                  className="absolute left-1/2 top-0 bottom-0 w-1/2 origin-left transform-style-3d"
+                  style={{ backfaceVisibility: 'visible' }} // Important for 3D flip
+                >
+                  {/* Front Face (Visible at 0deg) */}
+                  <div
+                    className="absolute inset-0 w-full h-full backface-hidden"
+                    style={{ backfaceVisibility: 'hidden' }}
+                  >
+                    {/* Use renderBlankFace for cleaner transition */}
+                    {renderBlankFace('right')}
+
+                    {/* Shadow overlay when flipping */}
+                    <div className="absolute inset-0 bg-black/5 pointer-events-none"></div>
+                  </div>
+
+                  {/* Back Face (Visible at -180deg) */}
+                  <div
+                    className="absolute inset-0 w-full h-full backface-hidden"
+                    style={{
+                      backfaceVisibility: 'hidden',
+                      transform: 'rotateY(180deg)'
+                    }}
+                  >
+                    {/* Use renderBlankFace for cleaner transition */}
+                    {renderBlankFace('left')}
+
+                    {/* Shadow overlay when flipping */}
+                    <div className="absolute inset-0 bg-black/5 pointer-events-none"></div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Spine Shadow Overlay (Center) */}
+              <div className="absolute left-1/2 top-0 bottom-0 w-12 -ml-6 bg-gradient-to-r from-transparent via-black/20 to-transparent z-40 pointer-events-none mix-blend-multiply"></div>
+
+              {/* Click Zones */}
+              <div
+                className="absolute top-0 left-0 w-1/6 h-full cursor-pointer z-50 hover:bg-black/5 transition-colors"
+                onClick={handlePrevPage}
+                title="이전 페이지"
+              />
+              <div
+                className="absolute top-0 right-0 w-1/6 h-full cursor-pointer z-50 hover:bg-black/5 transition-colors"
+                onClick={handleNextPage}
+                title="다음 페이지"
+              />
             </div>
-
-            {/* Flipping Layer */}
-            {flippingState !== 'idle' && (
-              <motion.div
-                key={flippingState === 'next' ? currentPage : currentPage - 1}
-                custom={direction}
-                variants={flipVariants}
-                initial="initial"
-                animate="animate"
-                onAnimationComplete={onFlipComplete}
-                className="absolute left-1/2 top-0 bottom-0 w-1/2 origin-left transform-style-3d"
-                style={{ backfaceVisibility: 'visible' }} // Important for 3D flip
-              >
-                {/* Front Face (Visible at 0deg) */}
-                <div
-                  className="absolute inset-0 w-full h-full backface-hidden"
-                  style={{ backfaceVisibility: 'hidden' }}
-                >
-                  {/* Use renderBlankFace for cleaner transition */}
-                  {renderBlankFace('right')}
-
-                  {/* Shadow overlay when flipping */}
-                  <div className="absolute inset-0 bg-black/5 pointer-events-none"></div>
-                </div>
-
-                {/* Back Face (Visible at -180deg) */}
-                <div
-                  className="absolute inset-0 w-full h-full backface-hidden"
-                  style={{
-                    backfaceVisibility: 'hidden',
-                    transform: 'rotateY(180deg)'
-                  }}
-                >
-                  {/* Use renderBlankFace for cleaner transition */}
-                  {renderBlankFace('left')}
-
-                  {/* Shadow overlay when flipping */}
-                  <div className="absolute inset-0 bg-black/5 pointer-events-none"></div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Spine Shadow Overlay (Center) */}
-            <div className="absolute left-1/2 top-0 bottom-0 w-12 -ml-6 bg-gradient-to-r from-transparent via-black/20 to-transparent z-40 pointer-events-none mix-blend-multiply"></div>
-
-            {/* Click Zones */}
-            <div
-              className="absolute top-0 left-0 w-1/6 h-full cursor-pointer z-50 hover:bg-black/5 transition-colors"
-              onClick={handlePrevPage}
-              title="이전 페이지"
-            />
-            <div
-              className="absolute top-0 right-0 w-1/6 h-full cursor-pointer z-50 hover:bg-black/5 transition-colors"
-              onClick={handleNextPage}
-              title="다음 페이지"
-            />
           </div>
-        </div>
+        ) : stage === 'quiz' ? (
+          renderQuiz()
+        ) : (
+          renderCover()
+        )}
       </div>
 
       {/* Bottom Navigation (Visual Only) */}
@@ -863,19 +1171,19 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
           variant="outline"
           size="icon"
           onClick={handlePrevPage}
-          disabled={currentPage === 0 && flippingState === 'idle'}
+          disabled={prevDisabled}
           className="rounded-full border-[#4A3F47]/30 text-[#4A3F47] hover:bg-[#4A3F47]/10 disabled:opacity-30"
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <span className="text-[#4A3F47] font-serif tracking-widest text-sm">
-          {currentPage + 1} / {pages.length}
+          {progressLabel}
         </span>
         <Button
           variant="outline"
           size="icon"
           onClick={handleNextPage}
-          disabled={currentPage === pages.length - 1 && flippingState === 'idle'}
+          disabled={nextDisabled}
           className="rounded-full border-[#4A3F47]/30 text-[#4A3F47] hover:bg-[#4A3F47]/10 disabled:opacity-30"
         >
           <ChevronRight className="w-6 h-6" />
