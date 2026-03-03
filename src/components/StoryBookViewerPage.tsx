@@ -94,6 +94,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   const [quizFeedback, setQuizFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [quizComplete, setQuizComplete] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  const isSharedView = storybook.id <= 0 && !!storybook.shareSlug;
 
   useEffect(() => {
     const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -189,7 +190,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       setCurrentPage(0);
       try {
         // 공유 피드(shareSlug만 있는 카드)인 경우, 공개 상세 API 사용
-        if (storybook.id <= 0 && storybook.shareSlug) {
+        if (isSharedView && storybook.shareSlug) {
           const detail = await apiFetch<{
             story: {
               id: number;
@@ -212,8 +213,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
             : (detail.story.storybookPages || []);
           const basePages = detail.story.pages || [];
 
-          // 이미지가 없으면 백엔드 스토리북 페이지도 시도(로그인 상태일 때만 성공)
-          if ((!sbPages || sbPages.length === 0) && detail.story.id > 0) {
+          // 공유 동화는 public slug API로만 스토리북 조회
+          if (!sbPages || sbPages.length === 0) {
             try {
               const more = await apiFetch<Array<{
                 id: number;
@@ -222,12 +223,10 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
                 imageUrl?: string | null;
                 image_url?: string | null;
                 audioUrl?: string | null;
-              }>>(`/stories/${detail.story.id}/storybook/pages`);
-              if (more && more.length > 0) {
-                sbPages = more;
-              }
+              }>>(`/public/shared-stories/${storybook.shareSlug}/storybook/pages`);
+              sbPages = more || [];
             } catch (e) {
-              console.warn("공유 스토리북 이미지 추가 조회 실패", e);
+              console.warn("공유 스토리북 페이지 조회 실패", e);
             }
           }
 
@@ -327,7 +326,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     };
     load();
     return () => { mounted = false; };
-  }, [storybook.id]);
+  }, [storybook.id, storybook.shareSlug, isSharedView]);
 
   // Stop audio when page changes or component unmounts
   useEffect(() => {
@@ -818,6 +817,36 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     console.log('🎙️ Generating new audio for page:', currentPageData.id);
     setIsGeneratingAudio(true);
     try {
+      if (isSharedView && storybook.shareSlug) {
+        if (!currentPageData.id || currentPageData.id <= 0) {
+          alert("공유 동화 음성을 생성할 수 없는 페이지입니다.");
+          return;
+        }
+
+        const res = await apiFetch<{ audioUrl?: string; audio_url?: string }>(
+          `/public/shared-stories/${storybook.shareSlug}/storybook/pages/${currentPageData.id}/audio`,
+          {
+            method: "POST",
+            body: {
+              text: currentPageData.text,
+              voicePreset: voicePreset !== 'default' ? voicePreset : undefined,
+              language: storybook.language || 'KO',
+            }
+          }
+        );
+        const audioUrlFromResponse = res.audioUrl || res.audio_url;
+        if (!audioUrlFromResponse) {
+          alert("공유 동화 음성을 불러오지 못했습니다.");
+          return;
+        }
+        const newAudioUrl = normalizeAudio(audioUrlFromResponse);
+        setPages(prev => prev.map((p, idx) =>
+          idx === currentPage ? { ...p, audioUrl: newAudioUrl } : p
+        ));
+        await playExisting(newAudioUrl!);
+        return;
+      }
+
       const targetStoryId = storyId > 0 ? storyId : storybook.id;
       const res = await apiFetch<{ audioUrl: string }>(
         `/stories/${targetStoryId}/storybook/pages/${currentPageData.id}/audio`,
