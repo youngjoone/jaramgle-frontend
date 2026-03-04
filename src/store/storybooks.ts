@@ -16,6 +16,7 @@ export interface Storybook {
   isShared: boolean;
   isOwned: boolean;
   shareSlug?: string | null;
+  origin?: 'SINGLE' | 'CURRICULUM' | string | null;
 }
 
 const placeholderImage = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80";
@@ -167,6 +168,7 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       topics?: string[];
       shareSlug?: string | null;
       share_slug?: string | null;
+      origin?: string | null;
       createdAt?: string;
     }>>("/stories");
 
@@ -185,6 +187,7 @@ export const useStorybooksStore = create<StorybooksState>((set, get) => ({
       isShared: !!(s.shareSlug || (s as any).share_slug),
       shareSlug: s.shareSlug || (s as any).share_slug,
       isOwned: true,
+      origin: s.origin ?? null,
     }));
 
     // 공유된 내 동화는 공개 피드 요약과 동기화해 좋아요/내 좋아요 여부 반영

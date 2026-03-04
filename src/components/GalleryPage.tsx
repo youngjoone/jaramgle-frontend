@@ -324,7 +324,14 @@ function GalleryCard({ storybook, onToggleShare, onDelete, onViewStorybook }: Ga
         {/* Info Section */}
         <div className="space-y-2 px-1">
           {/* Title */}
-          <h3 className="text-[#424242] font-semibold line-clamp-1">{storybook.title}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-[#424242] font-semibold line-clamp-1">{storybook.title}</h3>
+            {storybook.origin === 'CURRICULUM' && (
+              <span className="shrink-0 rounded-full bg-[#FFF3E0] px-2 py-0.5 text-[11px] font-semibold text-[#E65100]">
+                시리즈
+              </span>
+            )}
+          </div>
 
           {/* Author */}
           <p className="text-sm text-[#757575] font-normal">작가 {storybook.author}</p>
