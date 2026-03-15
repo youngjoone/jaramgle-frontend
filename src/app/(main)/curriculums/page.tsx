@@ -94,6 +94,7 @@ export default function CurriculumsPage() {
                         {item.subTopic ? ` · ${item.subTopic}` : ''}
                         {item.ageRange ? ` · ${item.ageRange}` : ''}
                         {` · ${item.baseLanguage}`}
+                        {item.translationLanguage ? ` → ${item.translationLanguage}` : ''}
                       </p>
                     </div>
                     <span className="rounded-full bg-[#F1F8E9] px-2.5 py-1 text-xs font-semibold text-[#558B2F]">

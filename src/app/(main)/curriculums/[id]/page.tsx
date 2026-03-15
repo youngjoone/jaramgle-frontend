@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
 import {
   cancelWeek,
   generateWeek,
@@ -66,8 +67,10 @@ function statusColor(status: WeekStatus) {
   return 'text-[#5A6E49] bg-[#F1F8E9]';
 }
 
-export default function CurriculumDetailPage({ params }: { params: { id: string } }) {
-  const curriculumId = Number(params.id);
+export default function CurriculumDetailPage() {
+  const routeParams = useParams<{ id?: string | string[] }>();
+  const routeId = Array.isArray(routeParams?.id) ? routeParams.id[0] : routeParams?.id;
+  const curriculumId = Number(routeId);
   const [detail, setDetail] = useState<CurriculumDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,13 +104,13 @@ export default function CurriculumDetailPage({ params }: { params: { id: string 
   };
 
   useEffect(() => {
-    if (!Number.isFinite(curriculumId)) {
+    if (!routeId || !Number.isFinite(curriculumId)) {
       setError('잘못된 커리큘럼 ID입니다.');
       setLoading(false);
       return;
     }
     load(true);
-  }, [curriculumId]);
+  }, [curriculumId, routeId]);
 
   const shouldPoll = useMemo(() => {
     if (!detail) return false;
@@ -132,7 +135,7 @@ export default function CurriculumDetailPage({ params }: { params: { id: string 
       if (action === 'regenerate') await regenerateWeek(detail.id, weekNo);
       if (action === 'cancel') await cancelWeek(detail.id, weekNo);
       await load(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setError('요청 처리에 실패했습니다.');
     } finally {
@@ -197,6 +200,7 @@ export default function CurriculumDetailPage({ params }: { params: { id: string 
                 {detail.subTopic ? ` · ${detail.subTopic}` : ''}
                 {detail.ageRange ? ` · ${detail.ageRange}` : ''}
                 {` · ${detail.baseLanguage}`}
+                {detail.translationLanguage ? ` → ${detail.translationLanguage}` : ''}
               </p>
             </div>
             <div className="flex gap-2">

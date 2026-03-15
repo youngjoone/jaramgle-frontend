@@ -43,6 +43,7 @@ export interface CurriculumSummary {
   subTopic?: string | null;
   ageRange?: string | null;
   baseLanguage: string;
+  translationLanguage?: string | null;
   weeks: number;
   completedWeeks: number;
   status: 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED';
@@ -58,6 +59,7 @@ export interface CurriculumDetail {
   subTopic?: string | null;
   ageRange?: string | null;
   baseLanguage: string;
+  translationLanguage?: string | null;
   weeks: number;
   generationMode: 'ON_DEMAND' | 'SCHEDULED';
   scheduleRule?: string | null;
@@ -82,6 +84,7 @@ export interface CreateCurriculumPayload {
   subTopic?: string;
   ageRange?: string;
   baseLanguage: string;
+  translationLanguage?: string;
   weeks: 2 | 4;
   generationMode?: 'ON_DEMAND' | 'SCHEDULED';
   defaultCharacterIds?: number[];
@@ -115,6 +118,7 @@ function normalizeSummary(raw: any): CurriculumSummary {
     subTopic: raw.subTopic ?? raw.sub_topic ?? null,
     ageRange: raw.ageRange ?? raw.age_range ?? null,
     baseLanguage: raw.baseLanguage ?? raw.base_language,
+    translationLanguage: raw.translationLanguage ?? raw.translation_language ?? null,
     weeks: Number(raw.weeks),
     completedWeeks: Number(raw.completedWeeks ?? raw.completed_weeks ?? 0),
     status: raw.status,
@@ -132,6 +136,7 @@ function normalizeDetail(raw: any): CurriculumDetail {
     subTopic: raw.subTopic ?? raw.sub_topic ?? null,
     ageRange: raw.ageRange ?? raw.age_range ?? null,
     baseLanguage: raw.baseLanguage ?? raw.base_language,
+    translationLanguage: raw.translationLanguage ?? raw.translation_language ?? null,
     weeks: Number(raw.weeks),
     generationMode: (raw.generationMode ?? raw.generation_mode ?? 'ON_DEMAND') as 'ON_DEMAND' | 'SCHEDULED',
     scheduleRule: raw.scheduleRule ?? raw.schedule_rule ?? null,
