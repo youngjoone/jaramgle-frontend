@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Jaramgle Frontend (Next.js)
 
-## Getting Started
+Jaramgle 웹 프론트엔드입니다.  
+동화 생성, 커리큘럼 생성/주차 관리, 라이브러리, 관리자 페이지를 제공합니다.
 
-First, run the development server:
+## 기술 스택
+
+- Next.js 16 (App Router)
+- React 19, TypeScript
+- Zustand (상태 관리)
+- Tailwind CSS + shadcn/ui
+
+## 실행
+
+```bash
+cd /Users/kyj/jaramgle/jaramgle-frontend
+npm install
+npm run dev
+```
+
+- 기본 주소: `http://localhost:3000`
+
+## 환경 변수
+
+- `NEXT_PUBLIC_API_BASE` (기본값: `http://localhost:8080/api`)
+
+예시:
+
+```bash
+NEXT_PUBLIC_API_BASE=http://localhost:8080/api
+```
+
+## 주요 화면
+
+- `/create`: 단일 동화 생성
+- `/curriculums`: 커리큘럼 목록
+- `/curriculums/new`: 커리큘럼 생성
+- `/curriculums/[id]`: 커리큘럼 상세/주차 생성
+- `/library`, `/my-books`: 내 동화 목록
+- `/admin`: 관리자 대시보드
+
+## 관리자 페이지 추가 기능
+
+`/admin` > 스토리 탭에서:
+
+- 고아 커리큘럼 스토리 점검
+- 고아 커리큘럼 스토리 정리 실행
+
+## 스크립트
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
+npm run start
+npm run lint
+npm run type-check
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 연동
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- 백엔드 API: `../jaramgle-backend/backend`
+- AI 서버는 백엔드가 프록시/호출 처리
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
