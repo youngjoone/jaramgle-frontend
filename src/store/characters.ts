@@ -56,7 +56,16 @@ interface CharactersState {
   isLoading: boolean;
   error: string | null;
   loadCharacters: () => Promise<void>;
-  createCharacter: (character: Omit<Character, 'id' | 'createdAt' | 'imageUrl'> & { imageFile: File | null; imagePreview?: string | null }) => Promise<Character>;
+  createCharacter: (character: {
+    name: string;
+    personality: string;
+    dialogues: string[];
+    visualHint?: string;
+    artStyle?: string;
+    keywords?: string[];
+    imageFile: File | null;
+    imagePreview?: string | null;
+  }) => Promise<Character>;
   deleteCharacter: (id: number) => Promise<void>;
   updateCharacter: (id: number, updates: Partial<Character> & { imageFile?: File | null }) => Promise<void>;
   setCharacters: (characters: Character[]) => void;

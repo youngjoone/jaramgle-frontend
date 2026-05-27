@@ -39,6 +39,15 @@ type CharacterDto = {
   scope?: string | null;
 };
 
+const featuredCharacterSlugs = ['busan-boogi', 'boogi'];
+
+function featuredCharacterRank(slug?: string | null): number {
+  if (!slug) return Number.MAX_SAFE_INTEGER;
+  const normalized = slug.trim().toLowerCase();
+  const rank = featuredCharacterSlugs.indexOf(normalized);
+  return rank >= 0 ? rank : Number.MAX_SAFE_INTEGER;
+}
+
 const ageGroups = ['0-3세', '4-6세', '7-9세', '10-12세'];
 const categoryOptions = ['과학', '도덕', '수학', '영어', '생활습관'];
 const languages = ['한국어', 'English', '日本語', 'Français', 'Español', 'Deutsch', '中文'];
@@ -142,7 +151,10 @@ export default function NewCurriculumPage() {
     const mapCharacter = (c: CharacterDto, fallbackCategory: string): CharacterCard => ({
       id: c.id,
       name: c.name,
-      category: c.scope || fallbackCategory,
+      category:
+        featuredCharacterRank(c.slug) < Number.MAX_SAFE_INTEGER
+          ? '부산 공식 마스코트'
+          : (c.scope === 'GLOBAL' ? fallbackCategory : (c.scope || fallbackCategory)),
       imageUrl: normalizeImageUrl(c.imageUrl || c.image_url),
     });
 
@@ -151,7 +163,12 @@ export default function NewCurriculumPage() {
       try {
         const globals = await apiFetch<CharacterDto[]>('/public/characters');
         if (mounted) {
-          setGlobalCharacters((globals ?? []).slice(0, 10).map((c) => mapCharacter(c, '추천 캐릭터')));
+          const prioritized = [...(globals ?? [])].sort((a, b) => {
+            const rankDiff = featuredCharacterRank(a.slug) - featuredCharacterRank(b.slug);
+            if (rankDiff !== 0) return rankDiff;
+            return a.id - b.id;
+          });
+          setGlobalCharacters(prioritized.slice(0, 10).map((c) => mapCharacter(c, '추천 캐릭터')));
         }
       } catch (err) {
         console.error('추천 캐릭터 불러오기 실패', err);

@@ -14,6 +14,8 @@ interface StoryPage {
   image_url?: string | null;
   text: string;
   audioUrl?: string | null;
+  translationAudioUrl?: string | null;
+  translation_audio_url?: string | null;
 }
 
 interface StoryBookViewerPageProps {
@@ -223,6 +225,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
                 imageUrl?: string | null;
                 image_url?: string | null;
                 audioUrl?: string | null;
+                translationAudioUrl?: string | null;
+                translation_audio_url?: string | null;
               }>>(`/public/shared-stories/${storybook.shareSlug}/storybook/pages`);
               sbPages = more || [];
             } catch (e) {
@@ -238,6 +242,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
               text: p.text,
               imageUrl: normalizeImage(p.imageUrl || p.image_url || null),
               audioUrl: normalizeAudio(p.audioUrl),
+              translationAudioUrl: normalizeAudio(p.translationAudioUrl || p.translation_audio_url || null),
             }))
             .sort((a: any, b: any) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
           setPages(sorted);
@@ -260,6 +265,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
             imageUrl?: string | null;
             image_url?: string | null;
             audioUrl?: string | null;
+            translationAudioUrl?: string | null;
+            translation_audio_url?: string | null;
           }>>(`/stories/${storybook.id}/storybook/pages`);
 
           if (mounted && sbPages && sbPages.length > 0) {
@@ -270,6 +277,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
                 text: p.text,
                 imageUrl: normalizeImage(p.imageUrl || (p as any).image_url || null),
                 audioUrl: normalizeAudio(p.audioUrl),
+                translationAudioUrl: normalizeAudio((p as any).translationAudioUrl || (p as any).translation_audio_url || null),
               }))
               .sort((a, b) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
             setPages(sortedSb);
@@ -306,6 +314,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
             text: p.text,
             imageUrl: normalizeImage(p.imageUrl || p.image_url || null),
             audioUrl: null,
+            translationAudioUrl: null,
           }))
           .sort((a: any, b: any) => (a.pageNo ?? 0) - (b.pageNo ?? 0));
         setPages(sorted);
@@ -338,6 +347,16 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     setCurrentTime(0);
     setDuration(0);
   }, [currentPage]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+  }, [showTranslation]);
 
   // Stop audio when stage changes away from reading
   useEffect(() => {
@@ -713,6 +732,14 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
   };
   const translationLabel = translationLanguage ? (langLabelMap[translationLanguage] || translationLanguage) : null;
   const displayTitle = showTranslation && translatedTitle ? translatedTitle : storybook.title;
+  const currentPageDisplayText = currentPageData
+    ? (showTranslation && translationMap[currentPageData.pageNo]
+      ? translationMap[currentPageData.pageNo]
+      : currentPageData.text)
+    : "";
+  const currentPageAudioUrl = currentPageData
+    ? (showTranslation ? currentPageData.translationAudioUrl : currentPageData.audioUrl)
+    : null;
 
   // Audio Handlers
   const handleToggleAutoPlay = () => {
@@ -754,6 +781,10 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
 
   const handlePlayAudio = async () => {
     if (stage !== 'reading' || !currentPageData) return;
+    const playbackText = currentPageDisplayText || currentPageData.text;
+    const playbackLanguage = showTranslation
+      ? (translationLanguage || storybook.language || 'KO')
+      : (storybook.language || 'KO');
 
     const playExisting = async (url: string) => {
       console.log('🎵 Playing audio:', url);
@@ -808,8 +839,8 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
     };
 
     // If audio already exists, play it
-    if (currentPageData.audioUrl) {
-      await playExisting(currentPageData.audioUrl);
+    if (currentPageAudioUrl) {
+      await playExisting(currentPageAudioUrl);
       return;
     }
 
@@ -823,40 +854,58 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
           return;
         }
 
-        const res = await apiFetch<{ audioUrl?: string; audio_url?: string }>(
+        const res = await apiFetch<{
+          audioUrl?: string;
+          audio_url?: string;
+          translationAudioUrl?: string;
+          translation_audio_url?: string;
+        }>(
           `/public/shared-stories/${storybook.shareSlug}/storybook/pages/${currentPageData.id}/audio`,
           {
             method: "POST",
             body: {
-              text: currentPageData.text,
+              text: playbackText,
               voicePreset: voicePreset !== 'default' ? voicePreset : undefined,
-              language: storybook.language || 'KO',
+              language: playbackLanguage,
+              translationTrack: showTranslation,
             }
           }
         );
-        const audioUrlFromResponse = res.audioUrl || res.audio_url;
+        const audioUrlFromResponse = showTranslation
+          ? (res.translationAudioUrl || res.translation_audio_url || res.audioUrl || res.audio_url)
+          : (res.audioUrl || res.audio_url);
         if (!audioUrlFromResponse) {
           alert("공유 동화 음성을 불러오지 못했습니다.");
           return;
         }
         const newAudioUrl = normalizeAudio(audioUrlFromResponse);
         setPages(prev => prev.map((p, idx) =>
-          idx === currentPage ? { ...p, audioUrl: newAudioUrl } : p
+          idx === currentPage
+            ? (showTranslation
+              ? { ...p, translationAudioUrl: newAudioUrl }
+              : { ...p, audioUrl: newAudioUrl })
+            : p
         ));
         await playExisting(newAudioUrl!);
         return;
       }
 
       const targetStoryId = storyId > 0 ? storyId : storybook.id;
-      const res = await apiFetch<{ audioUrl: string }>(
+      const res = await apiFetch<{
+        audioUrl?: string;
+        audio_url?: string;
+        translationAudioUrl?: string;
+        translation_audio_url?: string;
+      }>(
         `/stories/${targetStoryId}/storybook/pages/${currentPageData.id}/audio`,
         {
           method: 'POST',
           body: {
-            text: currentPageData.text,
+            text: playbackText,
             // Optional: user-selected voice preset for Gemini TTS style guidance
             voicePreset: voicePreset !== 'default' ? voicePreset : undefined,
-            language: storybook.language || 'KO'
+            language: playbackLanguage,
+            translationTrack: showTranslation,
           }
         }
       );
@@ -864,7 +913,9 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
       console.log('📦 Audio generation response:', res);
 
       // Handle both camelCase and snake_case from backend
-      const audioUrlFromResponse = res.audioUrl || (res as any).audio_url;
+      const audioUrlFromResponse = showTranslation
+        ? (res.translationAudioUrl || res.translation_audio_url || res.audioUrl || (res as any).audio_url)
+        : (res.audioUrl || (res as any).audio_url);
 
       if (res && audioUrlFromResponse) {
         const newAudioUrl = normalizeAudio(audioUrlFromResponse);
@@ -872,7 +923,11 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
 
         // Update pages state with new audio URL
         setPages(prev => prev.map((p, idx) =>
-          idx === currentPage ? { ...p, audioUrl: newAudioUrl } : p
+          idx === currentPage
+            ? (showTranslation
+              ? { ...p, translationAudioUrl: newAudioUrl }
+              : { ...p, audioUrl: newAudioUrl })
+            : p
         ));
 
         // Play immediately
@@ -1038,7 +1093,7 @@ export function StoryBookViewerPage({ storybook, onClose }: StoryBookViewerPageP
                   {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
                 </Button>
 
-                {pages[currentPage]?.audioUrl && (
+                {currentPageAudioUrl && (
                   <>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] tabular-nums opacity-70 w-8 text-right text-[#4A3F47]">{formatTime(currentTime)}</span>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   cancelWeek,
   generateWeek,
@@ -67,8 +67,39 @@ function statusColor(status: WeekStatus) {
   return 'text-[#5A6E49] bg-[#F1F8E9]';
 }
 
+function parseApiError(err: unknown): { code?: string; message?: string } {
+  if (err instanceof Error) {
+    const raw = err.message;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          code: (parsed as { code?: string }).code,
+          message: (parsed as { message?: string }).message,
+        };
+      }
+    } catch {
+      // ignore JSON parse failure
+    }
+    return { message: raw };
+  }
+  return {};
+}
+
+function findInsufficientHeartsMessage(detail: CurriculumDetail): string | null {
+  const failedWeek = detail.weekItems.find((week) =>
+    (week.status === 'FAILED' || week.status === 'FAILED_TIMEOUT') &&
+    (
+      week.latestJob?.errorCode === 'INSUFFICIENT_HEARTS'
+      || (week.latestJob?.errorMessage ?? '').includes('하트')
+    )
+  );
+  return failedWeek?.latestJob?.errorMessage ?? (failedWeek ? '하트가 부족합니다. 충전이 필요해요.' : null);
+}
+
 export default function CurriculumDetailPage() {
   const routeParams = useParams<{ id?: string | string[] }>();
+  const router = useRouter();
   const routeId = Array.isArray(routeParams?.id) ? routeParams.id[0] : routeParams?.id;
   const curriculumId = Number(routeId);
   const [detail, setDetail] = useState<CurriculumDetail | null>(null);
@@ -81,6 +112,12 @@ export default function CurriculumDetailPage() {
     if (showLoading) setLoading(true);
     try {
       const data = await getCurriculum(curriculumId);
+      const insufficientHeartsMessage = findInsufficientHeartsMessage(data);
+      if (insufficientHeartsMessage) {
+        setError(insufficientHeartsMessage);
+        router.push('/subscription');
+        return;
+      }
       setDetail(data);
       setError(null);
       setEditStates((prev) => {
@@ -119,10 +156,30 @@ export default function CurriculumDetailPage() {
 
   useEffect(() => {
     if (!shouldPoll) return;
-    const id = window.setInterval(() => {
-      load(false);
-    }, 3000);
-    return () => window.clearInterval(id);
+    let intervalId: number | null = null;
+
+    const refresh = () => {
+      void load(false);
+    };
+
+    const applyInterval = () => {
+      const delay = document.visibilityState === 'visible' ? 5000 : 10000;
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+      intervalId = window.setInterval(refresh, delay);
+    };
+
+    applyInterval();
+    const handleVisibilityChange = () => applyInterval();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [shouldPoll, curriculumId]);
 
   const runWeekAction = async (weekNo: number, action: 'generate' | 'retry' | 'regenerate' | 'cancel') => {
@@ -137,7 +194,13 @@ export default function CurriculumDetailPage() {
       await load(false);
     } catch (err: unknown) {
       console.error(err);
-      setError('요청 처리에 실패했습니다.');
+      const parsed = parseApiError(err);
+      if (parsed.code === 'INSUFFICIENT_HEARTS' || (parsed.message ?? '').includes('하트')) {
+        setError(parsed.message || '하트가 부족합니다. 충전이 필요해요.');
+        router.push('/subscription');
+        return;
+      }
+      setError(parsed.message || '요청 처리에 실패했습니다.');
     } finally {
       setActionBusyWeek(null);
     }
