@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Compass, Image as ImageIcon, Wand2, CreditCard, Settings, Users, BookOpenCheck } from 'lucide-react';
+import { Compass, Image as ImageIcon, Wand2, CreditCard, Settings, Users, BookOpenCheck, Waves } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -18,9 +18,14 @@ const navItems = [
 ];
 
 const bottomItems = [
+  { id: 'busan', href: '/busan', icon: Waves, label: 'J×Busan', requiresAuth: true },
   { id: 'subscription', href: '/subscription', icon: CreditCard, label: '결제', requiresAuth: true },
   { id: 'settings', href: '/settings', icon: Settings, label: '설정', requiresAuth: true },
 ];
+
+function isItemActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -64,7 +69,7 @@ export function Sidebar() {
         <nav className="flex-1 flex flex-col gap-3">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive = isItemActive(pathname, item.href);
             const isDisabled = needsLogin && item.requiresAuth;
 
             return (
@@ -104,7 +109,7 @@ export function Sidebar() {
         <div className="flex flex-col gap-3">
           {bottomItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive = isItemActive(pathname, item.href);
             const isDisabled = needsLogin && item.requiresAuth;
 
             return (

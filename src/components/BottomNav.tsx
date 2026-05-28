@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Compass, Wand2, Image, CreditCard, Settings, Users, BookOpenCheck } from 'lucide-react';
+import { Compass, Wand2, Image, CreditCard, Settings, Users, BookOpenCheck, Waves } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LoginRequiredPopup } from '@/components/ui/alert-popup';
@@ -13,8 +13,13 @@ const navItems = [
   { id: 'curriculums', href: '/curriculums', icon: BookOpenCheck, label: '커리큘럼', requiresAuth: true },
   { id: 'my-books', href: '/my-books', icon: Image, label: '내 도서', requiresAuth: true },
   { id: 'my-characters', href: '/my-characters', icon: Users, label: '캐릭터', requiresAuth: true },
+  { id: 'busan', href: '/busan', icon: Waves, label: 'J×Busan', requiresAuth: true },
   { id: 'settings', href: '/settings', icon: Settings, label: '설정', requiresAuth: true },
 ];
+
+function isItemActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -41,7 +46,7 @@ export function BottomNav() {
       <nav className="bottom-nav md:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = isItemActive(pathname, item.href);
           const isDisabled = needsLogin && item.requiresAuth;
 
           if (isDisabled) {
