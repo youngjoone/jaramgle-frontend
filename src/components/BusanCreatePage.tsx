@@ -60,6 +60,8 @@ type BusanAttractionSource = {
   address: string;
   thumbnailUrl: string;
   imageUrl: string;
+  lat: number | null;
+  lng: number | null;
 };
 
 type BusanAttractionRaw = {
@@ -74,6 +76,8 @@ type BusanAttractionRaw = {
   address?: string | null;
   thumbnail_url?: string | null;
   image_url?: string | null;
+  lat?: number | string | null;
+  lng?: number | string | null;
 };
 
 type BusanAttractionPageResponse = {
@@ -132,6 +136,7 @@ export function BusanCreatePage() {
   const searchParams = useSearchParams();
 
   const themeFromQuery = (searchParams.get('theme') || 'CITY_INTRO') as ThemeKey;
+  const sourceIdFromQuery = (searchParams.get('sourceId') || '').trim();
   const [theme, setTheme] = useState<ThemeKey>(themeFromQuery in themes ? themeFromQuery : 'CITY_INTRO');
   const [age, setAge] = useState('7-9세');
   const [length, setLength] = useState('15페이지');
@@ -167,7 +172,7 @@ export function BusanCreatePage() {
     }
   }, [themeFromQuery]);
 
-  const loadAttractions = async (page = 1, keyword = attractionSearchKeyword) => {
+  const loadAttractions = async (page = 1, keyword = attractionSearchKeyword, sourceId?: string) => {
     setIsAttractionsLoading(true);
     setAttractionsError(null);
 
@@ -176,6 +181,9 @@ export function BusanCreatePage() {
         page: String(page),
         size: '12',
       });
+      if (sourceId && sourceId.trim().length > 0) {
+        query.set('sourceId', sourceId.trim());
+      }
       if (keyword.trim().length > 0) {
         query.set('q', keyword.trim());
       }
@@ -193,6 +201,8 @@ export function BusanCreatePage() {
           address: item.address?.trim() || '',
           thumbnailUrl: item.thumbnail_url?.trim() || '',
           imageUrl: item.image_url?.trim() || '',
+          lat: typeof item.lat === 'number' ? item.lat : (typeof item.lat === 'string' ? Number(item.lat) || null : null),
+          lng: typeof item.lng === 'number' ? item.lng : (typeof item.lng === 'string' ? Number(item.lng) || null : null),
         }))
         .filter((item) => item.title.length > 0);
 
@@ -203,6 +213,12 @@ export function BusanCreatePage() {
       setAttractionTotalCount(typeof totalCountRaw === 'number' ? totalCountRaw : null);
 
       setSelectedAttractionKey((prev) => {
+        if (sourceId && sourceId.trim().length > 0) {
+          const matched = normalized.find((item) => item.sourceId === sourceId.trim());
+          if (matched) {
+            return getAttractionKey(matched);
+          }
+        }
         if (prev && normalized.some((item) => getAttractionKey(item) === prev)) {
           return prev;
         }
@@ -218,8 +234,8 @@ export function BusanCreatePage() {
   };
 
   useEffect(() => {
-    void loadAttractions(1, '');
-  }, []);
+    void loadAttractions(1, '', sourceIdFromQuery || undefined);
+  }, [sourceIdFromQuery]);
 
   useEffect(() => {
     const loadBoogiCharacter = async () => {
