@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Languages, Loader2, MapPin, Sailboat, Search, Sparkles, Wand2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Database, Languages, Loader2, MapPin, Sailboat, Search, Sparkles, Wand2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -114,6 +114,13 @@ function parseApiError(err: unknown): { code?: string; message?: string } {
     try {
       const parsed = JSON.parse(err.message);
       if (parsed && typeof parsed === 'object') {
+        const detail = (parsed as { detail?: { code?: string; message?: string } }).detail;
+        if (detail && typeof detail === 'object') {
+          return {
+            code: detail.code,
+            message: detail.message,
+          };
+        }
         return {
           code: (parsed as { code?: string }).code,
           message: (parsed as { message?: string }).message,
@@ -154,6 +161,7 @@ export function BusanCreatePage() {
   const [attractionSearchInput, setAttractionSearchInput] = useState('');
   const [attractionSearchKeyword, setAttractionSearchKeyword] = useState('');
   const [boogiCharacterId, setBoogiCharacterId] = useState<number | null>(null);
+  const [isBoogiLoading, setIsBoogiLoading] = useState(true);
 
   const [extraElementsText, setExtraElementsText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -171,6 +179,12 @@ export function BusanCreatePage() {
       setTheme(themeFromQuery as ThemeKey);
     }
   }, [themeFromQuery]);
+
+  useEffect(() => {
+    if (translationLanguage === language) {
+      setTranslationLanguage('선택 안 함');
+    }
+  }, [language, translationLanguage]);
 
   const loadAttractions = async (page = 1, keyword = attractionSearchKeyword, sourceId?: string) => {
     setIsAttractionsLoading(true);
@@ -239,6 +253,7 @@ export function BusanCreatePage() {
 
   useEffect(() => {
     const loadBoogiCharacter = async () => {
+      setIsBoogiLoading(true);
       try {
         const characters = await apiFetch<PublicCharacterDto[]>('/public/characters');
         const boogi = (characters || []).find(
@@ -250,6 +265,8 @@ export function BusanCreatePage() {
         setBoogiCharacterId(boogi?.id ?? null);
       } catch {
         setBoogiCharacterId(null);
+      } finally {
+        setIsBoogiLoading(false);
       }
     };
 
@@ -279,6 +296,15 @@ export function BusanCreatePage() {
   const selectedAttraction = attractions.find((item) => getAttractionKey(item) === selectedAttractionKey) || null;
 
   const handleGenerate = async () => {
+    if (!selectedAttraction) {
+      alert('공모전 동화에는 부산 공공데이터 명소가 필요합니다. 명소를 1개 선택해 주세요.');
+      return;
+    }
+    if (!isBoogiLoading && !boogiCharacterId) {
+      alert('부산 공식 캐릭터 부기 리소스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+
     setIsGenerating(true);
     setProgress(7);
 
@@ -348,8 +374,10 @@ export function BusanCreatePage() {
         if (confirm(parsed.message || '하트가 부족합니다. 충전 페이지로 이동할까요?')) {
           router.push('/subscription');
         }
+      } else if (parsed.code === 'AI_PROVIDER_CREDITS_DEPLETED') {
+        alert(parsed.message || 'AI 제공자 크레딧이 소진되어 부산 동화를 생성할 수 없습니다.');
       } else {
-        alert('부산 동화 생성에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        alert(parsed.message || '부산 동화 생성에 실패했어요. 잠시 후 다시 시도해 주세요.');
       }
     } finally {
       setIsGenerating(false);
@@ -468,21 +496,32 @@ export function BusanCreatePage() {
               <Languages className="h-4 w-4" /> 번역 언어 (선택)
             </label>
             <div className="flex flex-wrap gap-2">
-              {translationLanguages.map((item) => (
-                <Button
-                  key={item}
-                  variant="outline"
-                  size="sm"
-                  className={`rounded-full px-4 ${
-                    translationLanguage === item
-                      ? 'border-[#00ACC1] bg-[#E0F7FA] text-[#006064]'
-                      : 'border-[#CFD8DC] bg-white text-[#546E7A]'
-                  }`}
-                  onClick={() => setTranslationLanguage(item)}
-                >
-                  {item}
-                </Button>
-              ))}
+              {translationLanguages.map((item) => {
+                const isSameAsSource = item !== '선택 안 함' && item === language;
+                return (
+                  <Button
+                    key={item}
+                    variant="outline"
+                    size="sm"
+                    disabled={isSameAsSource}
+                    title={isSameAsSource ? '원본 언어와 같은 번역 언어는 선택할 수 없습니다.' : undefined}
+                    className={`rounded-full px-4 ${
+                      translationLanguage === item
+                        ? 'border-[#00ACC1] bg-[#E0F7FA] text-[#006064]'
+                        : isSameAsSource
+                          ? 'cursor-not-allowed border-[#E2E8F0] bg-[#F8FAFC] text-[#B0BEC5]'
+                          : 'border-[#CFD8DC] bg-white text-[#546E7A]'
+                    }`}
+                    onClick={() => {
+                      if (!isSameAsSource) {
+                        setTranslationLanguage(item);
+                      }
+                    }}
+                  >
+                    {item}
+                  </Button>
+                );
+              })}
             </div>
           </section>
 
@@ -504,6 +543,34 @@ export function BusanCreatePage() {
                   {voice.label}
                 </Button>
               ))}
+            </div>
+          </section>
+
+          <section>
+            <div
+              className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm ${
+                isBoogiLoading
+                  ? 'border-[#B3E5FC] bg-[#F3FBFF] text-[#0277BD]'
+                  : boogiCharacterId
+                    ? 'border-[#B2DFDB] bg-[#E0F7FA] text-[#006064]'
+                    : 'border-[#FFCDD2] bg-[#FFF5F5] text-[#C62828]'
+              }`}
+            >
+              {isBoogiLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : boogiCharacterId ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <AlertCircle className="h-4 w-4" />
+              )}
+              <span className="font-semibold">부기 캐릭터 리소스</span>
+              <span>
+                {isBoogiLoading
+                  ? '연결 확인 중'
+                  : boogiCharacterId
+                    ? '연결 완료. 생성 이미지에 부기 캐릭터 참조가 함께 전달됩니다.'
+                    : '미연결. 관리자 캐릭터 리소스 설정을 확인해야 합니다.'}
+              </span>
             </div>
           </section>
 
@@ -658,10 +725,46 @@ export function BusanCreatePage() {
 
                 {attractions.length === 0 && !isAttractionsLoading && !attractionsError && (
                   <div className="mt-3 rounded-2xl border border-dashed border-[#B3E5FC] bg-[#F3FBFF] px-3 py-2 text-sm text-[#546E7A]">
-                    불러온 명소가 없어 직접 요소를 입력해 사용할 수 있어요.
+                    불러온 명소가 없습니다. 공공데이터 명소가 있어야 공모전 전용 동화를 생성할 수 있어요.
                   </div>
                 )}
               </>
+            )}
+
+            {selectedAttraction && (
+              <div className="mt-4 overflow-hidden rounded-[28px] border border-[#81D4FA] bg-gradient-to-br from-white to-[#E1F5FE] shadow-sm">
+                <div className="flex flex-col gap-4 p-4 md:flex-row">
+                  <div className="h-36 w-full overflow-hidden rounded-2xl bg-[#E0F7FA] md:w-48">
+                    <ImageWithFallback
+                      src={selectedAttraction.thumbnailUrl || selectedAttraction.imageUrl}
+                      alt={selectedAttraction.title}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-[#0277BD]">
+                      <Database className="h-3.5 w-3.5" />
+                      부산광역시 공공데이터포털 관광명소정보서비스 반영
+                    </div>
+                    <h3 className="text-xl font-black text-[#01579B]">{selectedAttraction.title}</h3>
+                    <p className="mt-1 text-sm text-[#4F6D79]">
+                      {selectedAttraction.district || '부산'} · {selectedAttraction.address || '주소 정보 없음'}
+                    </p>
+                    <div className="mt-3 grid gap-2 text-sm text-[#334155] md:grid-cols-2">
+                      <div className="rounded-2xl bg-white/75 p-3">
+                        <div className="mb-1 font-bold text-[#0277BD]">소개</div>
+                        <p className="line-clamp-3">{selectedAttraction.intro || selectedAttraction.subtitle || '소개 정보 없음'}</p>
+                      </div>
+                      <div className="rounded-2xl bg-white/75 p-3">
+                        <div className="mb-1 font-bold text-[#0277BD]">특징/유래</div>
+                        <p className="line-clamp-3">
+                          {selectedAttraction.feature || selectedAttraction.origin || selectedAttraction.storyContext || '특징 정보 없음'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             <Textarea
