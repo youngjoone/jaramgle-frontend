@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { apiFetch } from '@/lib/api';
+import { BACKEND_ORIGIN, apiFetch } from '@/lib/api';
 import { GenerationLoading } from '@/components/GenerationLoading';
 import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
 
@@ -236,7 +236,7 @@ export function BusanCreatePage() {
         if (prev && normalized.some((item) => getAttractionKey(item) === prev)) {
           return prev;
         }
-        return normalized[0] ? getAttractionKey(normalized[0]) : null;
+        return null;
       });
     } catch (error) {
       const parsed = parseApiError(error);
@@ -327,7 +327,7 @@ export function BusanCreatePage() {
       language: languageMap[language] || 'KO',
       required_elements: parseRequiredElements(),
       moral: themes[theme].moral,
-      art_style: '맑고 밝은 해양 동화 일러스트',
+      art_style: '2D 파스텔 동화책 삽화, flat colors, clean outline, soft watercolor texture, no 3D, no CGI, no plastic toy render',
       character_ids: boogiCharacterId ? [boogiCharacterId] : undefined,
       generation_profile: 'BUSAN_COMPETITION',
       busan_context: selectedAttraction
@@ -374,8 +374,8 @@ export function BusanCreatePage() {
         if (confirm(parsed.message || '하트가 부족합니다. 충전 페이지로 이동할까요?')) {
           router.push('/subscription');
         }
-      } else if (parsed.code === 'AI_PROVIDER_CREDITS_DEPLETED') {
-        alert(parsed.message || 'AI 제공자 크레딧이 소진되어 부산 동화를 생성할 수 없습니다.');
+      } else if (parsed.code === 'AI_PROVIDER_CREDITS_DEPLETED' || parsed.code === 'AI_PROVIDER_QUOTA_OR_BILLING_ERROR') {
+        alert(parsed.message || 'AI 제공자 권한/쿼터/결제 설정 문제로 부산 동화를 생성할 수 없습니다.');
       } else {
         alert(parsed.message || '부산 동화 생성에 실패했어요. 잠시 후 다시 시도해 주세요.');
       }
@@ -546,31 +546,66 @@ export function BusanCreatePage() {
             </div>
           </section>
 
-          <section>
+          <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
+            <div className="relative overflow-hidden rounded-[32px] border border-[#80DEEA] bg-gradient-to-b from-white via-[#E0F7FA] to-[#B3E5FC] p-4 shadow-[0_18px_36px_rgba(0,150,200,0.16)]">
+              <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[#FFF59D]/70 blur-sm" />
+              <div className="absolute -bottom-10 -left-8 h-32 w-32 rounded-full bg-[#4DD0E1]/30 blur-md" />
+              <div className="relative">
+                <div className="mb-3 inline-flex rounded-full bg-white/85 px-3 py-1 text-xs font-black text-[#0277BD] shadow-sm">
+                  부산 공식 캐릭터
+                </div>
+                <div className="rounded-[28px] bg-white/75 p-4">
+                  <ImageWithFallback
+                    src={`${BACKEND_ORIGIN}/characters/busan-boogi.png`}
+                    alt="부산 공식 캐릭터 부기"
+                    className="h-56 w-full object-contain drop-shadow-[0_12px_18px_rgba(2,119,189,0.18)]"
+                  />
+                </div>
+                <div className="mt-3 rounded-2xl bg-white/90 px-4 py-3 text-sm font-bold leading-relaxed text-[#01579B] shadow-sm">
+                  “안녕! 내가 부산 곳곳을 동화 속 모험으로 안내할게.”
+                </div>
+              </div>
+            </div>
+
             <div
-              className={`flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm ${
+              className={`flex min-h-full flex-col justify-between gap-4 rounded-[28px] border px-5 py-5 ${
                 isBoogiLoading
                   ? 'border-[#B3E5FC] bg-[#F3FBFF] text-[#0277BD]'
                   : boogiCharacterId
-                    ? 'border-[#B2DFDB] bg-[#E0F7FA] text-[#006064]'
+                    ? 'border-[#B2DFDB] bg-gradient-to-br from-[#E0F7FA] to-white text-[#006064]'
                     : 'border-[#FFCDD2] bg-[#FFF5F5] text-[#C62828]'
               }`}
             >
-              {isBoogiLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : boogiCharacterId ? (
-                <CheckCircle2 className="h-4 w-4" />
-              ) : (
-                <AlertCircle className="h-4 w-4" />
-              )}
-              <span className="font-semibold">부기 캐릭터 리소스</span>
-              <span>
-                {isBoogiLoading
-                  ? '연결 확인 중'
-                  : boogiCharacterId
-                    ? '연결 완료. 생성 이미지에 부기 캐릭터 참조가 함께 전달됩니다.'
-                    : '미연결. 관리자 캐릭터 리소스 설정을 확인해야 합니다.'}
-              </span>
+              <div>
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+                  {isBoogiLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : boogiCharacterId ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4" />
+                  )}
+                  <span className="font-black">부기 캐릭터 리소스</span>
+                  <span className="font-semibold">
+                    {isBoogiLoading ? '연결 확인 중' : boogiCharacterId ? '연결 완료' : '미연결'}
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed text-[#335766]">
+                  {isBoogiLoading
+                    ? '부기 캐릭터 참조 이미지를 확인하고 있습니다.'
+                    : boogiCharacterId
+                      ? '동화 이미지 생성 시 부기 캐릭터 참조가 함께 전달됩니다. 부산 전용 동화에서는 부기가 기본 주인공처럼 등장합니다.'
+                      : '관리자 캐릭터 리소스 설정이 필요합니다. 부기 리소스가 없으면 부산 공모전 전용 동화를 생성하지 않습니다.'}
+                </p>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-3">
+                {themes[theme].requiredAnchors.map((anchor) => (
+                  <div key={anchor} className="rounded-2xl bg-white/80 px-3 py-3 text-xs font-bold text-[#0277BD] shadow-sm">
+                    {anchor}
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
 

@@ -249,7 +249,7 @@ export function BusanMainPage() {
         if (prev && normalized.some((item) => getAttractionKey(item) === prev)) {
           return prev;
         }
-        return normalized.length > 0 ? getAttractionKey(normalized[0]) : null;
+        return null;
       });
     } catch (error) {
       setLoadError(parseApiError(error));
@@ -386,12 +386,8 @@ export function BusanMainPage() {
   }, [selectedAttractionKey, attractions]);
 
   const goCreate = (targetTheme: ThemeKey) => {
-    if (!selectedAttraction) {
-      alert('먼저 명소를 선택해 주세요.');
-      return;
-    }
     const query = new URLSearchParams({ theme: targetTheme });
-    if (selectedAttraction.sourceId) {
+    if (selectedAttraction?.sourceId) {
       query.set('sourceId', selectedAttraction.sourceId);
     }
     router.push(`/busan/create?${query.toString()}`);
@@ -416,8 +412,8 @@ export function BusanMainPage() {
                 동화 스튜디오
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-[#336E7B] md:text-base">
-                지도로 부산 명소를 탐색한 뒤 바로 동화를 만들 수 있습니다.
-                원하는 주제를 고르고 명소를 선택해 동화 생성으로 이어가세요.
+                지도로 부산 명소를 탐색하거나, 바로 생성 페이지로 이동해 명소를 고를 수 있습니다.
+                원하는 주제를 먼저 고르고 동화 생성으로 이어가세요.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -425,7 +421,7 @@ export function BusanMainPage() {
                   className="rounded-full bg-gradient-to-r from-[#039BE5] to-[#0288D1] px-8 py-6 text-white shadow-[0_10px_24px_rgba(2,136,209,0.35)] hover:from-[#0277BD] hover:to-[#01579B]"
                   onClick={() => goCreate(theme)}
                 >
-                  선택 명소로 동화 생성
+                  {selectedAttraction ? '선택 명소로 동화 생성' : '동화 생성 페이지로 가기'}
                 </Button>
                 <Button
                   variant="outline"
@@ -549,7 +545,13 @@ export function BusanMainPage() {
                 </>
               ) : (
                 <div className="mt-4 rounded-xl border border-dashed border-[#B3E5FC] bg-[#F4FBFF] p-4 text-sm text-[#4F6D79]">
-                  지도 또는 목록에서 명소를 선택해 주세요.
+                  지도 또는 목록에서 명소를 선택하거나, 생성 페이지로 이동한 뒤 명소를 골라도 됩니다.
+                  <Button
+                    className="mt-3 w-full rounded-full bg-gradient-to-r from-[#039BE5] to-[#0288D1] text-white"
+                    onClick={() => goCreate(theme)}
+                  >
+                    생성 페이지에서 명소 고르기
+                  </Button>
                 </div>
               )}
 
