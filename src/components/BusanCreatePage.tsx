@@ -60,12 +60,17 @@ type BusanAttractionSource = {
   address: string;
   thumbnailUrl: string;
   imageUrl: string;
+  photoTitle: string;
+  photoLocation: string;
+  photoKeywords: string;
+  dataSources: string;
   lat: number | null;
   lng: number | null;
 };
 
 type BusanAttractionRaw = {
   source_id?: string | null;
+  sourceId?: string | null;
   title?: string | null;
   district?: string | null;
   subtitle?: string | null;
@@ -73,9 +78,20 @@ type BusanAttractionRaw = {
   feature?: string | null;
   origin?: string | null;
   story_context?: string | null;
+  storyContext?: string | null;
   address?: string | null;
   thumbnail_url?: string | null;
+  thumbnailUrl?: string | null;
   image_url?: string | null;
+  imageUrl?: string | null;
+  photo_title?: string | null;
+  photoTitle?: string | null;
+  photo_location?: string | null;
+  photoLocation?: string | null;
+  photo_keywords?: string | null;
+  photoKeywords?: string | null;
+  data_sources?: string | null;
+  dataSources?: string | null;
   lat?: number | string | null;
   lng?: number | string | null;
 };
@@ -108,6 +124,16 @@ const voices = [
   { key: 'grandpa', label: '할아버지' },
   { key: 'grandma', label: '할머니' },
 ];
+
+function textValue(...values: Array<string | null | undefined>): string {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+  return '';
+}
 
 function parseApiError(err: unknown): { code?: string; message?: string } {
   if (err instanceof Error) {
@@ -204,17 +230,21 @@ export function BusanCreatePage() {
       const data = await apiFetch<BusanAttractionPageResponse>(`/public/busan/attractions?${query.toString()}`);
       const normalized = (Array.isArray(data?.items) ? data.items : [])
         .map((item) => ({
-          sourceId: item.source_id?.trim() || '',
-          title: item.title?.trim() || '',
-          district: item.district?.trim() || '',
-          subtitle: item.subtitle?.trim() || '',
-          intro: item.intro?.trim() || '',
-          feature: item.feature?.trim() || '',
-          origin: item.origin?.trim() || '',
-          storyContext: item.story_context?.trim() || '',
-          address: item.address?.trim() || '',
-          thumbnailUrl: item.thumbnail_url?.trim() || '',
-          imageUrl: item.image_url?.trim() || '',
+          sourceId: textValue(item.source_id, item.sourceId),
+          title: textValue(item.title),
+          district: textValue(item.district),
+          subtitle: textValue(item.subtitle),
+          intro: textValue(item.intro),
+          feature: textValue(item.feature),
+          origin: textValue(item.origin),
+          storyContext: textValue(item.story_context, item.storyContext),
+          address: textValue(item.address),
+          thumbnailUrl: textValue(item.thumbnail_url, item.thumbnailUrl),
+          imageUrl: textValue(item.image_url, item.imageUrl),
+          photoTitle: textValue(item.photo_title, item.photoTitle),
+          photoLocation: textValue(item.photo_location, item.photoLocation),
+          photoKeywords: textValue(item.photo_keywords, item.photoKeywords),
+          dataSources: textValue(item.data_sources, item.dataSources),
           lat: typeof item.lat === 'number' ? item.lat : (typeof item.lat === 'string' ? Number(item.lat) || null : null),
           lng: typeof item.lng === 'number' ? item.lng : (typeof item.lng === 'string' ? Number(item.lng) || null : null),
         }))
@@ -327,7 +357,7 @@ export function BusanCreatePage() {
       language: languageMap[language] || 'KO',
       required_elements: parseRequiredElements(),
       moral: themes[theme].moral,
-      art_style: '2D 파스텔 동화책 삽화, flat colors, clean outline, soft watercolor texture, no 3D, no CGI, no plastic toy render',
+      art_style: '2D 파스텔 동화책 삽화, 깨끗한 선, 수채화 질감, no 3D',
       character_ids: boogiCharacterId ? [boogiCharacterId] : undefined,
       generation_profile: 'BUSAN_COMPETITION',
       busan_context: selectedAttraction
@@ -342,6 +372,10 @@ export function BusanCreatePage() {
             origin_story: selectedAttraction.origin || undefined,
             description: selectedAttraction.storyContext || undefined,
             address: selectedAttraction.address || undefined,
+            photo_title: selectedAttraction.photoTitle || undefined,
+            photo_location: selectedAttraction.photoLocation || undefined,
+            photo_keywords: selectedAttraction.photoKeywords || undefined,
+            data_sources: selectedAttraction.dataSources || undefined,
           }
         : undefined,
     };
@@ -612,7 +646,7 @@ export function BusanCreatePage() {
           <section>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-[#01579B]">
-                <MapPin className="h-4 w-4" /> 부산 장소 선택 (공공데이터, 1개 선택)
+                <MapPin className="h-4 w-4" /> 사진이 있는 부산 명소 선택 (공공데이터, 1개)
               </label>
               <Button
                 type="button"
@@ -632,7 +666,7 @@ export function BusanCreatePage() {
               <Input
                 value={attractionSearchInput}
                 onChange={(event) => setAttractionSearchInput(event.target.value)}
-                placeholder="장소 검색 (예: 해운대, 감천)"
+                placeholder="장소 검색 (예: 해운대, 감천, 흰여울)"
                 className="max-w-sm border-[#B3E5FC] bg-white"
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
@@ -684,6 +718,10 @@ export function BusanCreatePage() {
                   </div>
                 )}
 
+                <div className="mb-3 rounded-2xl bg-[#E1F5FE]/70 px-4 py-3 text-sm leading-relaxed text-[#01579B]">
+                  아이가 먼저 고르기 쉽도록 이미지가 있는 명소만 보여줍니다. 선택한 장소의 설명과 관광사진 키워드는 동화 프롬프트에 함께 반영됩니다.
+                </div>
+
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                   {attractions.map((place) => {
                     const key = getAttractionKey(place);
@@ -701,15 +739,19 @@ export function BusanCreatePage() {
                             : 'border-[#CFD8DC] hover:-translate-y-0.5 hover:shadow-md'
                         }`}
                       >
-                        <div className="h-24 w-full bg-[#E0F7FA]">
-                          {thumbnail ? (
-                            <ImageWithFallback
-                              src={thumbnail}
-                              alt={place.title}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-xs text-[#607D8B]">이미지 없음</div>
+                        <div className="relative h-28 w-full bg-[#E0F7FA]">
+                          <ImageWithFallback
+                            src={thumbnail}
+                            alt={place.title}
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-black text-[#0277BD] shadow-sm">
+                            사진 명소
+                          </div>
+                          {selected && (
+                            <div className="absolute bottom-2 right-2 rounded-full bg-[#0288D1] px-2 py-1 text-[10px] font-black text-white shadow-sm">
+                              선택됨
+                            </div>
                           )}
                         </div>
                         <div className="space-y-1 px-3 py-2">
@@ -718,6 +760,11 @@ export function BusanCreatePage() {
                           <div className="line-clamp-2 text-[11px] text-[#607D8B]">
                             {place.feature || place.intro || place.subtitle || place.storyContext || '명소 소개 정보'}
                           </div>
+                          {place.photoKeywords && (
+                            <div className="line-clamp-1 text-[10px] font-semibold text-[#0288D1]">
+                              동화 소재 · {place.photoKeywords}
+                            </div>
+                          )}
                         </div>
                       </button>
                     );
@@ -760,7 +807,7 @@ export function BusanCreatePage() {
 
                 {attractions.length === 0 && !isAttractionsLoading && !attractionsError && (
                   <div className="mt-3 rounded-2xl border border-dashed border-[#B3E5FC] bg-[#F3FBFF] px-3 py-2 text-sm text-[#546E7A]">
-                    불러온 명소가 없습니다. 공공데이터 명소가 있어야 공모전 전용 동화를 생성할 수 있어요.
+                    불러온 사진 명소가 없습니다. 검색어를 바꾸거나 관리자에서 부산 공공데이터 동기화를 실행해 주세요.
                   </div>
                 )}
               </>
@@ -779,7 +826,7 @@ export function BusanCreatePage() {
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-[#0277BD]">
                       <Database className="h-3.5 w-3.5" />
-                      부산광역시 공공데이터포털 관광명소정보서비스 반영
+                      {selectedAttraction.dataSources || '부산광역시 공공데이터포털 관광명소정보서비스 반영'}
                     </div>
                     <h3 className="text-xl font-black text-[#01579B]">{selectedAttraction.title}</h3>
                     <p className="mt-1 text-sm text-[#4F6D79]">
@@ -797,6 +844,16 @@ export function BusanCreatePage() {
                         </p>
                       </div>
                     </div>
+                    {(selectedAttraction.photoTitle || selectedAttraction.photoKeywords) && (
+                      <div className="mt-3 rounded-2xl bg-white/75 p-3 text-sm text-[#334155]">
+                        <div className="mb-1 font-bold text-[#0277BD]">관광사진 보강 정보</div>
+                        <p className="line-clamp-2">
+                          {[selectedAttraction.photoTitle, selectedAttraction.photoLocation, selectedAttraction.photoKeywords]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

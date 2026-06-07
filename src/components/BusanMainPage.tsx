@@ -1,7 +1,7 @@
 "use client";
 
 import { type ComponentType, useEffect, useMemo, useRef, useState } from 'react';
-import { Compass, Globe2, Landmark, Loader2, Sailboat, Search } from 'lucide-react';
+import { Compass, Globe2, Landmark, Layers3, Loader2, MapPin, Sailboat, Search, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -51,12 +51,17 @@ type BusanAttractionSource = {
   address: string;
   thumbnailUrl: string;
   imageUrl: string;
+  photoTitle: string;
+  photoLocation: string;
+  photoKeywords: string;
+  dataSources: string;
   lat: number | null;
   lng: number | null;
 };
 
 type BusanAttractionRaw = {
   source_id?: string | null;
+  sourceId?: string | null;
   title?: string | null;
   district?: string | null;
   subtitle?: string | null;
@@ -64,15 +69,28 @@ type BusanAttractionRaw = {
   feature?: string | null;
   origin?: string | null;
   story_context?: string | null;
+  storyContext?: string | null;
   address?: string | null;
   thumbnail_url?: string | null;
+  thumbnailUrl?: string | null;
   image_url?: string | null;
+  imageUrl?: string | null;
+  photo_title?: string | null;
+  photoTitle?: string | null;
+  photo_location?: string | null;
+  photoLocation?: string | null;
+  photo_keywords?: string | null;
+  photoKeywords?: string | null;
+  data_sources?: string | null;
+  dataSources?: string | null;
   lat?: number | string | null;
   lng?: number | string | null;
 };
 
 type BusanAttractionPageResponse = {
   items?: BusanAttractionRaw[];
+  totalCount?: number | null;
+  total_count?: number | null;
 };
 
 declare global {
@@ -104,6 +122,16 @@ function parseNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function textValue(...values: Array<string | null | undefined>): string {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+  return '';
 }
 
 function getAttractionKey(place: BusanAttractionSource): string {
@@ -140,6 +168,7 @@ function createPinMarkerImage(kakao: any, size: number, fill: string, stroke: st
 }
 
 let kakaoSdkPromise: Promise<any> | null = null;
+const MAP_PREVIEW_PIN_LIMIT = 8;
 
 function loadKakaoMapsSdk(appKey: string): Promise<any> {
   if (typeof window === 'undefined') {
@@ -198,6 +227,9 @@ export function BusanMainPage() {
   const [selectedAttractionKey, setSelectedAttractionKey] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('전체');
+  const [showAllMapPins, setShowAllMapPins] = useState(false);
+  const [attractionTotalCount, setAttractionTotalCount] = useState<number | null>(null);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
@@ -213,9 +245,42 @@ export function BusanMainPage() {
     return attractions.find((item) => getAttractionKey(item) === selectedAttractionKey) ?? null;
   }, [attractions, selectedAttractionKey]);
 
-  const mappedAttractions = useMemo(() => {
-    return attractions.filter((item) => item.lat !== null && item.lng !== null);
+  const districtOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    attractions.forEach((item) => {
+      const district = item.district || '기타';
+      counts.set(district, (counts.get(district) ?? 0) + 1);
+    });
+    return Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right, 'ko'));
   }, [attractions]);
+
+  const filteredAttractions = useMemo(() => {
+    if (selectedDistrict === '전체') {
+      return attractions;
+    }
+    return attractions.filter((item) => (item.district || '기타') === selectedDistrict);
+  }, [attractions, selectedDistrict]);
+
+  const mappedAttractions = useMemo(() => {
+    return filteredAttractions.filter((item) => item.lat !== null && item.lng !== null);
+  }, [filteredAttractions]);
+
+  const visibleMapAttractions = useMemo(() => {
+    if (showAllMapPins || searchKeyword || selectedDistrict !== '전체') {
+      return mappedAttractions;
+    }
+
+    const preview = mappedAttractions.slice(0, MAP_PREVIEW_PIN_LIMIT);
+    if (
+      selectedAttraction
+      && selectedAttraction.lat !== null
+      && selectedAttraction.lng !== null
+      && !preview.some((item) => getAttractionKey(item) === getAttractionKey(selectedAttraction))
+    ) {
+      return [selectedAttraction, ...preview.slice(0, Math.max(0, MAP_PREVIEW_PIN_LIMIT - 1))];
+    }
+    return preview;
+  }, [mappedAttractions, searchKeyword, selectedAttraction, selectedDistrict, showAllMapPins]);
 
   const loadAttractions = async (keyword = '') => {
     setIsLoading(true);
@@ -226,25 +291,33 @@ export function BusanMainPage() {
         query.set('q', keyword.trim());
       }
       const data = await apiFetch<BusanAttractionPageResponse>(`/public/busan/attractions?${query.toString()}`);
+      const totalCountRaw = data?.totalCount ?? data?.total_count;
       const normalized = (Array.isArray(data?.items) ? data.items : [])
         .map((item) => ({
-          sourceId: item.source_id?.trim() || '',
-          title: item.title?.trim() || '',
-          district: item.district?.trim() || '',
-          subtitle: item.subtitle?.trim() || '',
-          intro: item.intro?.trim() || '',
-          feature: item.feature?.trim() || '',
-          origin: item.origin?.trim() || '',
-          storyContext: item.story_context?.trim() || '',
-          address: item.address?.trim() || '',
-          thumbnailUrl: item.thumbnail_url?.trim() || '',
-          imageUrl: item.image_url?.trim() || '',
+          sourceId: textValue(item.source_id, item.sourceId),
+          title: textValue(item.title),
+          district: textValue(item.district),
+          subtitle: textValue(item.subtitle),
+          intro: textValue(item.intro),
+          feature: textValue(item.feature),
+          origin: textValue(item.origin),
+          storyContext: textValue(item.story_context, item.storyContext),
+          address: textValue(item.address),
+          thumbnailUrl: textValue(item.thumbnail_url, item.thumbnailUrl),
+          imageUrl: textValue(item.image_url, item.imageUrl),
+          photoTitle: textValue(item.photo_title, item.photoTitle),
+          photoLocation: textValue(item.photo_location, item.photoLocation),
+          photoKeywords: textValue(item.photo_keywords, item.photoKeywords),
+          dataSources: textValue(item.data_sources, item.dataSources),
           lat: parseNumber(item.lat),
           lng: parseNumber(item.lng),
         }))
         .filter((item) => item.title.length > 0);
 
       setAttractions(normalized);
+      setAttractionTotalCount(typeof totalCountRaw === 'number' ? totalCountRaw : null);
+      setSelectedDistrict('전체');
+      setShowAllMapPins(Boolean(keyword.trim()));
       setSelectedAttractionKey((prev) => {
         if (prev && normalized.some((item) => getAttractionKey(item) === prev)) {
           return prev;
@@ -254,6 +327,9 @@ export function BusanMainPage() {
     } catch (error) {
       setLoadError(parseApiError(error));
       setAttractions([]);
+      setAttractionTotalCount(null);
+      setSelectedDistrict('전체');
+      setShowAllMapPins(false);
       setSelectedAttractionKey(null);
     } finally {
       setIsLoading(false);
@@ -269,7 +345,7 @@ export function BusanMainPage() {
   }, []);
 
   useEffect(() => {
-    if (!kakaoAppKey || !mapContainerRef.current || mappedAttractions.length === 0) {
+    if (!kakaoAppKey || !mapContainerRef.current) {
       return;
     }
 
@@ -303,7 +379,7 @@ export function BusanMainPage() {
 
         const bounds = new kakao.maps.LatLngBounds();
 
-        mappedAttractions.forEach((item) => {
+        visibleMapAttractions.forEach((item) => {
           const key = getAttractionKey(item);
           const marker = new kakao.maps.Marker({
             map: mapRef.current,
@@ -340,8 +416,13 @@ export function BusanMainPage() {
           });
         });
 
-        if (mappedAttractions.length === 1) {
-          mapRef.current.setCenter(new kakao.maps.LatLng(mappedAttractions[0].lat, mappedAttractions[0].lng));
+        if (visibleMapAttractions.length === 0) {
+          infoWindowRef.current?.close();
+          return;
+        }
+
+        if (visibleMapAttractions.length === 1) {
+          mapRef.current.setCenter(new kakao.maps.LatLng(visibleMapAttractions[0].lat, visibleMapAttractions[0].lng));
           mapRef.current.setLevel(5);
         } else if (!bounds.isEmpty()) {
           mapRef.current.setBounds(bounds);
@@ -357,7 +438,7 @@ export function BusanMainPage() {
     return () => {
       cancelled = true;
     };
-  }, [kakaoAppKey, mappedAttractions]);
+  }, [kakaoAppKey, visibleMapAttractions]);
 
   useEffect(() => {
     if (!markerStyleRef.current) {
@@ -384,6 +465,17 @@ export function BusanMainPage() {
     }
     mapRef.current.panTo(marker.getPosition());
   }, [selectedAttractionKey, attractions]);
+
+  const mapPreviewLimited = mappedAttractions.length > visibleMapAttractions.length;
+  const currentCountText = attractionTotalCount !== null
+    ? `전체 ${attractionTotalCount}개 중 현재 ${filteredAttractions.length}개`
+    : `현재 ${filteredAttractions.length}개`;
+
+  const changeDistrict = (district: string) => {
+    setSelectedDistrict(district);
+    setSelectedAttractionKey(null);
+    setShowAllMapPins(false);
+  };
 
   const goCreate = (targetTheme: ThemeKey) => {
     const query = new URLSearchParams({ theme: targetTheme });
@@ -412,7 +504,7 @@ export function BusanMainPage() {
                 동화 스튜디오
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-[#336E7B] md:text-base">
-                지도로 부산 명소를 탐색하거나, 바로 생성 페이지로 이동해 명소를 고를 수 있습니다.
+                사진이 있는 부산 공공데이터 명소를 고르고, 부기와 함께 바로 동화로 바꿔보세요.
                 원하는 주제를 먼저 고르고 동화 생성으로 이어가세요.
               </p>
 
@@ -506,14 +598,85 @@ export function BusanMainPage() {
             <div className="mb-4 text-sm text-[#4F6D79]">검색어: <b>{searchKeyword}</b></div>
           )}
 
+          <div className="mb-4 rounded-2xl border border-[#B3E5FC] bg-[#F8FDFF] p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-2 text-sm font-black text-[#01579B]">
+                <MapPin className="h-4 w-4 text-[#0288D1]" />
+                지역별로 먼저 좁혀보기
+              </div>
+              <div className="text-xs font-semibold text-[#4F6D79]">
+                {currentCountText} · 지도 표시 {visibleMapAttractions.length}개
+              </div>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className={`shrink-0 rounded-full px-4 ${selectedDistrict === '전체' ? 'border-[#0288D1] bg-[#E1F5FE] text-[#01579B]' : 'border-[#D6F2FF] bg-white text-[#4F6D79]'}`}
+                onClick={() => changeDistrict('전체')}
+              >
+                전체 {attractions.length}
+              </Button>
+              {districtOptions.map(([district, count]) => (
+                <Button
+                  key={district}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={`shrink-0 rounded-full px-4 ${selectedDistrict === district ? 'border-[#0288D1] bg-[#E1F5FE] text-[#01579B]' : 'border-[#D6F2FF] bg-white text-[#4F6D79]'}`}
+                  onClick={() => changeDistrict(district)}
+                >
+                  {district} {count}
+                </Button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
-            <div className="overflow-hidden rounded-2xl border border-[#B3E5FC] bg-[#EAF8FF]">
+            <div className="relative overflow-hidden rounded-2xl border border-[#B3E5FC] bg-[#EAF8FF]">
               {!kakaoAppKey ? (
                 <div className="flex h-[520px] items-center justify-center px-6 text-center text-sm text-[#0f766e]">
                   NEXT_PUBLIC_KAKAO_MAP_APP_KEY가 설정되지 않았습니다.
                 </div>
               ) : (
-                <div ref={mapContainerRef} className="h-[520px] w-full" />
+                <>
+                  <div ref={mapContainerRef} className="h-[520px] w-full" />
+                  <div className="pointer-events-none absolute left-4 top-4 z-10 max-w-[calc(100%-2rem)]">
+                    <div className="pointer-events-auto rounded-2xl border border-[#B3E5FC] bg-white/95 p-3 shadow-[0_12px_28px_rgba(2,136,209,0.18)] backdrop-blur">
+                      <div className="inline-flex items-center gap-2 text-xs font-black text-[#01579B]">
+                        <Layers3 className="h-4 w-4 text-[#0288D1]" />
+                        지도 핀 {visibleMapAttractions.length}/{mappedAttractions.length}
+                      </div>
+                      <p className="mt-1 max-w-[260px] text-[11px] leading-relaxed text-[#4F6D79]">
+                        기본 지도는 복잡하지 않게 대표 명소만 보여줘요. 지역을 고르거나 검색하면 더 정확하게 좁혀집니다.
+                      </p>
+                      {mapPreviewLimited && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="mt-2 h-8 rounded-full bg-[#0288D1] px-3 text-xs text-white hover:bg-[#0277BD]"
+                          onClick={() => setShowAllMapPins(true)}
+                        >
+                          전체 핀 보기
+                        </Button>
+                      )}
+                      {showAllMapPins && !searchKeyword && selectedDistrict === '전체' && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 h-8 rounded-full border-[#B3E5FC] px-3 text-xs text-[#0277BD] hover:bg-[#E1F5FE]"
+                          onClick={() => setShowAllMapPins(false)}
+                        >
+                          <X className="mr-1 h-3.5 w-3.5" />
+                          대표만 보기
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
@@ -530,9 +693,17 @@ export function BusanMainPage() {
                   </div>
                   <div className="mt-3 text-lg font-bold text-[#0C4A6E]">{selectedAttraction.title}</div>
                   <div className="mt-1 text-sm text-[#4F6D79]">{selectedAttraction.district || '부산'} · {selectedAttraction.address || '주소 정보 없음'}</div>
+                  <div className="mt-2 inline-flex rounded-full bg-[#E1F5FE] px-2.5 py-1 text-[11px] font-semibold text-[#0277BD]">
+                    {selectedAttraction.dataSources || '부산 공공데이터 기반'}
+                  </div>
                   <p className="mt-3 line-clamp-6 text-sm leading-relaxed text-[#334155]">
                     {selectedAttraction.feature || selectedAttraction.intro || selectedAttraction.storyContext || selectedAttraction.subtitle || '설명 정보가 없습니다.'}
                   </p>
+                  {selectedAttraction.photoKeywords && (
+                    <p className="mt-2 line-clamp-2 text-xs font-semibold text-[#0288D1]">
+                      관광사진 키워드 · {selectedAttraction.photoKeywords}
+                    </p>
+                  )}
 
                   <div className="mt-4 grid gap-2">
                     <Button
@@ -556,20 +727,44 @@ export function BusanMainPage() {
               )}
 
               <div className="mt-4 border-t border-[#E0F2FE] pt-3">
-                <div className="mb-2 text-sm font-semibold text-[#01579B]">명소 목록</div>
+                <div className="mb-1 text-sm font-semibold text-[#01579B]">현재 조건의 추천 명소</div>
+                <div className="mb-2 text-xs text-[#64748B]">
+                  사진이 있는 공공데이터 장소만 보여줘요. {selectedDistrict !== '전체' ? `${selectedDistrict} 기준 ` : ''}{filteredAttractions.length}개
+                </div>
                 <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1">
-                  {attractions.map((item) => {
+                  {filteredAttractions.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-[#B3E5FC] bg-[#F8FDFF] p-4 text-sm text-[#4F6D79]">
+                      현재 조건에 맞는 명소가 없습니다. 다른 지역을 선택하거나 검색어를 바꿔보세요.
+                    </div>
+                  )}
+                  {filteredAttractions.map((item) => {
                     const key = getAttractionKey(item);
                     const active = key === selectedAttractionKey;
+                    const thumbnail = item.thumbnailUrl || item.imageUrl;
                     return (
                       <button
                         key={key}
                         type="button"
                         onClick={() => setSelectedAttractionKey(key)}
-                        className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${active ? 'border-[#0288D1] bg-[#E1F5FE] text-[#01579B]' : 'border-[#E2E8F0] bg-white text-[#334155] hover:bg-[#F8FBFF]'}`}
+                        className={`flex w-full gap-3 rounded-xl border p-2 text-left text-sm transition ${active ? 'border-[#0288D1] bg-[#E1F5FE] text-[#01579B]' : 'border-[#E2E8F0] bg-white text-[#334155] hover:bg-[#F8FBFF]'}`}
                       >
-                        <div className="line-clamp-1 font-semibold">{item.title}</div>
-                        <div className="line-clamp-1 text-xs text-[#64748B]">{item.district || item.address || '부산'}</div>
+                        <div className="h-14 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-[#E0F7FA]">
+                          <ImageWithFallback
+                            src={thumbnail}
+                            alt={item.title}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="line-clamp-1 font-semibold">{item.title}</div>
+                          <div className="line-clamp-1 text-xs text-[#64748B]">{item.district || item.address || '부산'}</div>
+                          <div className="mt-1 inline-flex rounded-full bg-[#E1F5FE] px-2 py-0.5 text-[10px] font-bold text-[#0277BD]">
+                            사진 데이터
+                          </div>
+                          {item.photoKeywords && (
+                            <div className="mt-1 line-clamp-1 text-[11px] text-[#0288D1]">{item.photoKeywords}</div>
+                          )}
+                        </div>
                       </button>
                     );
                   })}
