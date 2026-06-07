@@ -102,7 +102,25 @@ type HeartTransaction = {
   createdAt: string;
 };
 
-type TabKey = "users" | "stories" | "orders" | "comments" | "hearts";
+type BusanDataStatus = {
+  hasActiveSources: boolean;
+  activeCount: number;
+  visibleCount: number;
+  photoEnrichedCount: number;
+  latestSyncedAt?: string | null;
+};
+
+type BusanDataSyncResult = {
+  fetched?: number;
+  saved?: number;
+  skipped?: number;
+  failedPages?: number;
+  status?: string;
+  candidates?: number;
+  enriched?: number;
+};
+
+type TabKey = "users" | "stories" | "orders" | "comments" | "hearts" | "busan";
 
 const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleString() : "-");
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -199,6 +217,93 @@ export default function AdminPage() {
       toastError("하트 조정 실패", message);
     } finally {
       setHeartLoading(false);
+    }
+  };
+
+  // Busan public data
+  const [busanStatus, setBusanStatus] = useState<BusanDataStatus | null>(null);
+  const [busanLoading, setBusanLoading] = useState(false);
+  const [busanRunning, setBusanRunning] = useState(false);
+  const [busanError, setBusanError] = useState<string | null>(null);
+  const [busanSyncResult, setBusanSyncResult] = useState<BusanDataSyncResult | null>(null);
+  const [busanPhotoResult, setBusanPhotoResult] = useState<BusanDataSyncResult | null>(null);
+  const [busanPhotoMax, setBusanPhotoMax] = useState("12");
+
+  const normalizeBusanStatus = (rawValue: unknown): BusanDataStatus => {
+    const raw = asRecord(rawValue);
+    return {
+      hasActiveSources: Boolean(raw.hasActiveSources ?? raw["has_active_sources"]),
+      activeCount: Number(raw.activeCount ?? raw["active_count"] ?? 0),
+      visibleCount: Number(raw.visibleCount ?? raw["visible_count"] ?? 0),
+      photoEnrichedCount: Number(raw.photoEnrichedCount ?? raw["photo_enriched_count"] ?? 0),
+      latestSyncedAt: (raw.latestSyncedAt ?? raw["latest_synced_at"] ?? null) as string | null,
+    };
+  };
+
+  const normalizeBusanResult = (rawValue: unknown): BusanDataSyncResult => {
+    const raw = asRecord(rawValue);
+    return {
+      fetched: Number(raw.fetched ?? 0),
+      saved: Number(raw.saved ?? 0),
+      skipped: Number(raw.skipped ?? 0),
+      failedPages: Number(raw.failedPages ?? raw["failed_pages"] ?? 0),
+      status: String(raw.status ?? ""),
+      candidates: Number(raw.candidates ?? 0),
+      enriched: Number(raw.enriched ?? 0),
+    };
+  };
+
+  const loadBusanStatus = async () => {
+    setBusanLoading(true);
+    setBusanError(null);
+    try {
+      const status = normalizeBusanStatus(await apiFetch<unknown>("/admin/busan/story-sources/status"));
+      setBusanStatus(status);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "부산 공공데이터 상태를 불러오지 못했습니다.";
+      setBusanError(message);
+      toastError("부산 데이터 상태 조회 실패", message);
+    } finally {
+      setBusanLoading(false);
+    }
+  };
+
+  const runBusanSync = async () => {
+    setBusanRunning(true);
+    setBusanError(null);
+    try {
+      const result = normalizeBusanResult(
+        await apiFetch<unknown>("/admin/busan/story-sources/sync", { method: "POST" })
+      );
+      setBusanSyncResult(result);
+      toastSuccess("부산 공공데이터 동기화 완료", `저장 ${result.saved ?? 0}건, 스킵 ${result.skipped ?? 0}건`);
+      await loadBusanStatus();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "부산 공공데이터 동기화에 실패했습니다.";
+      setBusanError(message);
+      toastError("부산 데이터 동기화 실패", message);
+    } finally {
+      setBusanRunning(false);
+    }
+  };
+
+  const runBusanPhotoSync = async () => {
+    const max = parsePositiveInt(busanPhotoMax, 12);
+    setBusanRunning(true);
+    setBusanError(null);
+    try {
+      const result = normalizeBusanResult(
+        await apiFetch<unknown>(`/admin/busan/story-sources/sync-photos?max=${max}`, { method: "POST" })
+      );
+      setBusanPhotoResult(result);
+      toastSuccess("부산 관광사진 보강 완료", `보강 ${result.enriched ?? 0}건 / 후보 ${result.candidates ?? 0}건`);
+      await loadBusanStatus();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "부산 관광사진 보강에 실패했습니다.";
+      setBusanError(message);
+      toastError("부산 관광사진 보강 실패", message);
+    } finally {
+      setBusanRunning(false);
     }
   };
 
@@ -427,6 +532,7 @@ export default function AdminPage() {
     if (activeTab === "users") loadUsers();
     if (activeTab === "stories") loadStories();
     if (activeTab === "orders") loadOrders();
+    if (activeTab === "busan") loadBusanStatus();
   }, [activeTab, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isAdmin) {
@@ -472,6 +578,7 @@ export default function AdminPage() {
           <TabButton tab="orders" label="결제 내역" />
           <TabButton tab="comments" label="댓글 관리" />
           <TabButton tab="hearts" label="하트 조정" />
+          <TabButton tab="busan" label="부산 데이터" />
         </div>
       </div>
 
@@ -809,6 +916,97 @@ export default function AdminPage() {
             {heartResult && (
               <div className="text-sm text-green-700">
                 트랜잭션 #{heartResult.id}: {heartResult.amount} → 잔액 {heartResult.balanceAfter}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "busan" && (
+        <Card>
+          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div>
+              <CardTitle>부산 공공데이터 관리</CardTitle>
+              <CardDescription>
+                공모전 동화 생성에 사용하는 부산 명소/관광사진 데이터를 확인하고 수동 갱신합니다.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2 md:ml-auto">
+              <Button variant="outline" onClick={loadBusanStatus} disabled={busanLoading || busanRunning}>
+                {busanLoading ? "확인 중..." : "상태 새로고침"}
+              </Button>
+              <Button onClick={runBusanSync} disabled={busanLoading || busanRunning}>
+                {busanRunning ? "처리 중..." : "명소 데이터 동기화"}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {busanError && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {busanError}
+              </div>
+            )}
+
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-lg border bg-muted/20 p-4">
+                <div className="text-xs text-muted-foreground">활성 데이터</div>
+                <div className="mt-1 text-2xl font-bold">{busanStatus?.activeCount ?? 0}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-4">
+                <div className="text-xs text-muted-foreground">이미지 노출 가능</div>
+                <div className="mt-1 text-2xl font-bold">{busanStatus?.visibleCount ?? 0}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-4">
+                <div className="text-xs text-muted-foreground">관광사진 보강</div>
+                <div className="mt-1 text-2xl font-bold">{busanStatus?.photoEnrichedCount ?? 0}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-4">
+                <div className="text-xs text-muted-foreground">마지막 동기화</div>
+                <div className="mt-1 text-sm font-semibold">{formatDate(busanStatus?.latestSyncedAt)}</div>
+              </div>
+            </div>
+
+            <div className="rounded-md border bg-muted/20 p-4">
+              <div className="mb-2 text-sm font-semibold">관광사진 보강</div>
+              <div className="mb-3 text-xs text-muted-foreground">
+                이미지가 있더라도 사진 키워드가 부족한 명소를 한국관광공사 관광사진 데이터로 보강합니다.
+              </div>
+              <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={busanPhotoMax}
+                  onChange={(e) => setBusanPhotoMax(e.target.value)}
+                  className="md:max-w-[160px]"
+                  placeholder="처리 건수"
+                />
+                <Button variant="outline" onClick={runBusanPhotoSync} disabled={busanLoading || busanRunning}>
+                  {busanRunning ? "처리 중..." : "관광사진 보강 실행"}
+                </Button>
+              </div>
+            </div>
+
+            {(busanSyncResult || busanPhotoResult) && (
+              <div className="grid gap-3 md:grid-cols-2">
+                {busanSyncResult && (
+                  <div className="rounded-md border bg-white p-4 text-sm">
+                    <div className="mb-2 font-semibold">최근 명소 동기화 결과</div>
+                    <div>상태: {busanSyncResult.status || "-"}</div>
+                    <div>가져옴: {busanSyncResult.fetched ?? 0}건</div>
+                    <div>저장: {busanSyncResult.saved ?? 0}건</div>
+                    <div>스킵: {busanSyncResult.skipped ?? 0}건</div>
+                    <div>실패 페이지: {busanSyncResult.failedPages ?? 0}</div>
+                  </div>
+                )}
+                {busanPhotoResult && (
+                  <div className="rounded-md border bg-white p-4 text-sm">
+                    <div className="mb-2 font-semibold">최근 관광사진 보강 결과</div>
+                    <div>후보: {busanPhotoResult.candidates ?? 0}건</div>
+                    <div>보강: {busanPhotoResult.enriched ?? 0}건</div>
+                    <div>스킵: {busanPhotoResult.skipped ?? 0}건</div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

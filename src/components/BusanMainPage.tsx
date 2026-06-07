@@ -54,6 +54,7 @@ type BusanAttractionSource = {
   photoTitle: string;
   photoLocation: string;
   photoKeywords: string;
+  storySeed: string;
   dataSources: string;
   lat: number | null;
   lng: number | null;
@@ -81,6 +82,8 @@ type BusanAttractionRaw = {
   photoLocation?: string | null;
   photo_keywords?: string | null;
   photoKeywords?: string | null;
+  story_seed?: string | null;
+  storySeed?: string | null;
   data_sources?: string | null;
   dataSources?: string | null;
   lat?: number | string | null;
@@ -308,6 +311,7 @@ export function BusanMainPage() {
           photoTitle: textValue(item.photo_title, item.photoTitle),
           photoLocation: textValue(item.photo_location, item.photoLocation),
           photoKeywords: textValue(item.photo_keywords, item.photoKeywords),
+          storySeed: textValue(item.story_seed, item.storySeed),
           dataSources: textValue(item.data_sources, item.dataSources),
           lat: parseNumber(item.lat),
           lng: parseNumber(item.lng),
@@ -697,7 +701,7 @@ export function BusanMainPage() {
                     {selectedAttraction.dataSources || '부산 공공데이터 기반'}
                   </div>
                   <p className="mt-3 line-clamp-6 text-sm leading-relaxed text-[#334155]">
-                    {selectedAttraction.feature || selectedAttraction.intro || selectedAttraction.storyContext || selectedAttraction.subtitle || '설명 정보가 없습니다.'}
+                    {selectedAttraction.storySeed || selectedAttraction.feature || selectedAttraction.intro || selectedAttraction.storyContext || selectedAttraction.subtitle || '설명 정보가 없습니다.'}
                   </p>
                   {selectedAttraction.photoKeywords && (
                     <p className="mt-2 line-clamp-2 text-xs font-semibold text-[#0288D1]">
@@ -763,6 +767,9 @@ export function BusanMainPage() {
                           </div>
                           {item.photoKeywords && (
                             <div className="mt-1 line-clamp-1 text-[11px] text-[#0288D1]">{item.photoKeywords}</div>
+                          )}
+                          {!item.photoKeywords && item.storySeed && (
+                            <div className="mt-1 line-clamp-1 text-[11px] text-[#0288D1]">{item.storySeed}</div>
                           )}
                         </div>
                       </button>

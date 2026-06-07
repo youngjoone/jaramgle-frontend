@@ -63,6 +63,7 @@ type BusanAttractionSource = {
   photoTitle: string;
   photoLocation: string;
   photoKeywords: string;
+  storySeed: string;
   dataSources: string;
   lat: number | null;
   lng: number | null;
@@ -90,6 +91,8 @@ type BusanAttractionRaw = {
   photoLocation?: string | null;
   photo_keywords?: string | null;
   photoKeywords?: string | null;
+  story_seed?: string | null;
+  storySeed?: string | null;
   data_sources?: string | null;
   dataSources?: string | null;
   lat?: number | string | null;
@@ -110,6 +113,12 @@ type PublicCharacterDto = {
   id: number;
   slug: string;
   name: string;
+};
+
+type GenerationErrorState = {
+  kind: 'MISSING_PLACE' | 'MISSING_BOOGI' | 'INSUFFICIENT_HEARTS' | 'AI_PROVIDER' | 'GENERAL';
+  title: string;
+  message: string;
 };
 
 const ageGroups = ['0-3세', '4-6세', '7-9세', '10-12세'];
@@ -192,6 +201,7 @@ export function BusanCreatePage() {
   const [extraElementsText, setExtraElementsText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [generationError, setGenerationError] = useState<GenerationErrorState | null>(null);
 
   useEffect(() => {
     const savedVoice = localStorage.getItem('voicePreset');
@@ -244,6 +254,7 @@ export function BusanCreatePage() {
           photoTitle: textValue(item.photo_title, item.photoTitle),
           photoLocation: textValue(item.photo_location, item.photoLocation),
           photoKeywords: textValue(item.photo_keywords, item.photoKeywords),
+          storySeed: textValue(item.story_seed, item.storySeed),
           dataSources: textValue(item.data_sources, item.dataSources),
           lat: typeof item.lat === 'number' ? item.lat : (typeof item.lat === 'string' ? Number(item.lat) || null : null),
           lng: typeof item.lng === 'number' ? item.lng : (typeof item.lng === 'string' ? Number(item.lng) || null : null),
@@ -324,14 +335,25 @@ export function BusanCreatePage() {
   };
 
   const selectedAttraction = attractions.find((item) => getAttractionKey(item) === selectedAttractionKey) || null;
+  const generateDisabled = isGenerating || isBoogiLoading || (!isBoogiLoading && !boogiCharacterId);
 
   const handleGenerate = async () => {
+    setGenerationError(null);
+
     if (!selectedAttraction) {
-      alert('공모전 동화에는 부산 공공데이터 명소가 필요합니다. 명소를 1개 선택해 주세요.');
+      setGenerationError({
+        kind: 'MISSING_PLACE',
+        title: '부산 명소를 먼저 선택해 주세요',
+        message: '공모전 동화는 부산 공공데이터 명소 1개를 기반으로 생성합니다. 사진 명소 카드에서 하나를 골라 주세요.',
+      });
       return;
     }
     if (!isBoogiLoading && !boogiCharacterId) {
-      alert('부산 공식 캐릭터 부기 리소스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      setGenerationError({
+        kind: 'MISSING_BOOGI',
+        title: '부기 캐릭터 연결이 필요합니다',
+        message: '부산 공모전 버전은 부기 캐릭터 참조 이미지를 필수로 사용합니다. 캐릭터 리소스 연결 상태를 확인해 주세요.',
+      });
       return;
     }
 
@@ -375,6 +397,7 @@ export function BusanCreatePage() {
             photo_title: selectedAttraction.photoTitle || undefined,
             photo_location: selectedAttraction.photoLocation || undefined,
             photo_keywords: selectedAttraction.photoKeywords || undefined,
+            story_seed: selectedAttraction.storySeed || undefined,
             data_sources: selectedAttraction.dataSources || undefined,
           }
         : undefined,
@@ -405,13 +428,24 @@ export function BusanCreatePage() {
     } catch (error) {
       const parsed = parseApiError(error);
       if (parsed.code === 'INSUFFICIENT_HEARTS' || (parsed.message ?? '').includes('하트')) {
-        if (confirm(parsed.message || '하트가 부족합니다. 충전 페이지로 이동할까요?')) {
-          router.push('/subscription');
-        }
+        setGenerationError({
+          kind: 'INSUFFICIENT_HEARTS',
+          title: '하트가 부족합니다',
+          message: parsed.message || '동화 생성을 시작하려면 하트 충전이 필요합니다. 하트 충전소로 이동해 주세요.',
+        });
+        router.push('/subscription');
       } else if (parsed.code === 'AI_PROVIDER_CREDITS_DEPLETED' || parsed.code === 'AI_PROVIDER_QUOTA_OR_BILLING_ERROR') {
-        alert(parsed.message || 'AI 제공자 권한/쿼터/결제 설정 문제로 부산 동화를 생성할 수 없습니다.');
+        setGenerationError({
+          kind: 'AI_PROVIDER',
+          title: 'AI 생성 서버 설정을 확인해야 합니다',
+          message: parsed.message || 'AI 제공자 권한, 쿼터, 결제 설정 문제로 부산 동화를 생성할 수 없습니다. 잠시 후 다시 시도하거나 관리자에게 문의해 주세요.',
+        });
       } else {
-        alert(parsed.message || '부산 동화 생성에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        setGenerationError({
+          kind: 'GENERAL',
+          title: '부산 동화 생성에 실패했습니다',
+          message: parsed.message || '일시적인 오류일 수 있습니다. 선택한 명소와 옵션을 유지한 상태로 다시 시도할 수 있습니다.',
+        });
       }
     } finally {
       setIsGenerating(false);
@@ -463,6 +497,17 @@ export function BusanCreatePage() {
                   {themes[key].label}
                 </Button>
               ))}
+            </div>
+            <div className="mt-3 rounded-2xl border border-[#B3E5FC] bg-[#F8FDFF] p-4">
+              <div className="mb-2 text-sm font-black text-[#01579B]">{themes[theme].label} 생성 방향</div>
+              <p className="text-sm leading-relaxed text-[#335766]">{themes[theme].moral}</p>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {themes[theme].promptDirectives.map((directive) => (
+                  <div key={directive} className="rounded-xl bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#0277BD] shadow-sm">
+                    {directive}
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -758,7 +803,7 @@ export function BusanCreatePage() {
                           <div className="line-clamp-1 text-sm font-bold text-[#01579B]">{place.title}</div>
                           <div className="line-clamp-1 text-xs text-[#546E7A]">{place.district || place.address || '부산'}</div>
                           <div className="line-clamp-2 text-[11px] text-[#607D8B]">
-                            {place.feature || place.intro || place.subtitle || place.storyContext || '명소 소개 정보'}
+                            {place.storySeed || place.feature || place.intro || place.subtitle || place.storyContext || '명소 소개 정보'}
                           </div>
                           {place.photoKeywords && (
                             <div className="line-clamp-1 text-[10px] font-semibold text-[#0288D1]">
@@ -838,9 +883,9 @@ export function BusanCreatePage() {
                         <p className="line-clamp-3">{selectedAttraction.intro || selectedAttraction.subtitle || '소개 정보 없음'}</p>
                       </div>
                       <div className="rounded-2xl bg-white/75 p-3">
-                        <div className="mb-1 font-bold text-[#0277BD]">특징/유래</div>
+                        <div className="mb-1 font-bold text-[#0277BD]">동화 소재</div>
                         <p className="line-clamp-3">
-                          {selectedAttraction.feature || selectedAttraction.origin || selectedAttraction.storyContext || '특징 정보 없음'}
+                          {selectedAttraction.storySeed || selectedAttraction.feature || selectedAttraction.origin || selectedAttraction.storyContext || '동화 소재 정보 없음'}
                         </p>
                       </div>
                     </div>
@@ -867,14 +912,62 @@ export function BusanCreatePage() {
             />
           </section>
 
+          {generationError && (
+            <div
+              className={`rounded-[24px] border px-4 py-4 ${
+                generationError.kind === 'INSUFFICIENT_HEARTS'
+                  ? 'border-[#FED7AA] bg-[#FFF7ED] text-[#9A3412]'
+                  : generationError.kind === 'AI_PROVIDER'
+                    ? 'border-[#FECACA] bg-[#FFF5F5] text-[#B91C1C]'
+                    : 'border-[#B3E5FC] bg-[#F3FBFF] text-[#01579B]'
+              }`}
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="mb-1 flex items-center gap-2 text-sm font-black">
+                    <AlertCircle className="h-4 w-4" />
+                    {generationError.title}
+                  </div>
+                  <p className="text-sm leading-relaxed">{generationError.message}</p>
+                </div>
+                {generationError.kind === 'INSUFFICIENT_HEARTS' && (
+                  <Button
+                    type="button"
+                    className="shrink-0 rounded-full bg-[#EA580C] px-5 text-white hover:bg-[#C2410C]"
+                    onClick={() => router.push('/subscription')}
+                  >
+                    하트 충전소로 이동
+                  </Button>
+                )}
+                {generationError.kind === 'GENERAL' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 rounded-full border-[#81D4FA] bg-white text-[#0277BD] hover:bg-[#E1F5FE]"
+                    onClick={handleGenerate}
+                  >
+                    다시 시도
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
           <Button
             className="w-full rounded-[24px] bg-gradient-to-r from-[#00ACC1] via-[#039BE5] to-[#0288D1] py-7 text-base font-bold text-white shadow-[0_12px_28px_rgba(2,136,209,0.35)] hover:from-[#00838F] hover:via-[#0277BD] hover:to-[#01579B]"
             onClick={handleGenerate}
+            disabled={generateDisabled}
           >
             <span className="inline-flex items-center gap-2">
               <Sparkles className="h-5 w-5" />
               <Wand2 className="h-5 w-5" />
-              부산 공모전 동화 생성하기
+              {!selectedAttraction
+                ? '부산 명소를 선택해 주세요'
+                : isBoogiLoading
+                  ? '부기 리소스 확인 중...'
+                  : !boogiCharacterId
+                    ? '부기 리소스 연결 필요'
+                    : '부산 공모전 동화 생성하기'}
             </span>
           </Button>
         </div>
