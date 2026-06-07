@@ -92,8 +92,11 @@ type BusanAttractionRaw = {
 
 type BusanAttractionPageResponse = {
   items?: BusanAttractionRaw[];
+  page?: number | null;
   totalCount?: number | null;
   total_count?: number | null;
+  hasNext?: boolean | null;
+  has_next?: boolean | null;
 };
 
 declare global {
@@ -140,6 +143,22 @@ function textValue(...values: Array<string | null | undefined>): string {
 function getAttractionKey(place: BusanAttractionSource): string {
   const raw = (place.sourceId || place.title || '').trim();
   return raw.length > 0 ? raw : `${place.title}-${place.address}`;
+}
+
+function mergeAttractions(
+  current: BusanAttractionSource[],
+  incoming: BusanAttractionSource[],
+): BusanAttractionSource[] {
+  const seen = new Set(current.map(getAttractionKey));
+  const merged = [...current];
+  incoming.forEach((item) => {
+    const key = getAttractionKey(item);
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(item);
+    }
+  });
+  return merged;
 }
 
 function createPinMarkerImage(kakao: any, size: number, fill: string, stroke: string) {
@@ -233,6 +252,9 @@ export function BusanMainPage() {
   const [selectedDistrict, setSelectedDistrict] = useState('전체');
   const [showAllMapPins, setShowAllMapPins] = useState(false);
   const [attractionTotalCount, setAttractionTotalCount] = useState<number | null>(null);
+  const [attractionPage, setAttractionPage] = useState(1);
+  const [attractionHasNext, setAttractionHasNext] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
@@ -285,11 +307,15 @@ export function BusanMainPage() {
     return preview;
   }, [mappedAttractions, searchKeyword, selectedAttraction, selectedDistrict, showAllMapPins]);
 
-  const loadAttractions = async (keyword = '') => {
-    setIsLoading(true);
+  const loadAttractions = async (keyword = '', page = 1, append = false) => {
+    if (append) {
+      setIsLoadingMore(true);
+    } else {
+      setIsLoading(true);
+    }
     setLoadError(null);
     try {
-      const query = new URLSearchParams({ page: '1', size: '24' });
+      const query = new URLSearchParams({ page: String(page), size: '24' });
       if (keyword.trim()) {
         query.set('q', keyword.trim());
       }
@@ -318,25 +344,38 @@ export function BusanMainPage() {
         }))
         .filter((item) => item.title.length > 0);
 
-      setAttractions(normalized);
+      const nextAttractions = append ? mergeAttractions(attractions, normalized) : normalized;
+      setAttractions(nextAttractions);
+      setAttractionPage(data?.page ?? page);
+      setAttractionHasNext(Boolean(data?.hasNext ?? data?.has_next));
       setAttractionTotalCount(typeof totalCountRaw === 'number' ? totalCountRaw : null);
-      setSelectedDistrict('전체');
-      setShowAllMapPins(Boolean(keyword.trim()));
+      if (!append) {
+        setSelectedDistrict('전체');
+        setShowAllMapPins(Boolean(keyword.trim()));
+      }
       setSelectedAttractionKey((prev) => {
-        if (prev && normalized.some((item) => getAttractionKey(item) === prev)) {
+        if (prev && nextAttractions.some((item) => getAttractionKey(item) === prev)) {
           return prev;
         }
         return null;
       });
     } catch (error) {
       setLoadError(parseApiError(error));
-      setAttractions([]);
-      setAttractionTotalCount(null);
-      setSelectedDistrict('전체');
-      setShowAllMapPins(false);
-      setSelectedAttractionKey(null);
+      if (!append) {
+        setAttractions([]);
+        setAttractionTotalCount(null);
+        setAttractionPage(1);
+        setAttractionHasNext(false);
+        setSelectedDistrict('전체');
+        setShowAllMapPins(false);
+        setSelectedAttractionKey(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (append) {
+        setIsLoadingMore(false);
+      } else {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -345,7 +384,7 @@ export function BusanMainPage() {
   }, [selectedAttractionKey]);
 
   useEffect(() => {
-    void loadAttractions('');
+    void loadAttractions('', 1, false);
   }, []);
 
   useEffect(() => {
@@ -472,7 +511,7 @@ export function BusanMainPage() {
 
   const mapPreviewLimited = mappedAttractions.length > visibleMapAttractions.length;
   const currentCountText = attractionTotalCount !== null
-    ? `전체 ${attractionTotalCount}개 중 현재 ${filteredAttractions.length}개`
+    ? `전체 ${attractionTotalCount}개 중 ${attractions.length}개 불러옴 · 현재 조건 ${filteredAttractions.length}개`
     : `현재 ${filteredAttractions.length}개`;
 
   const changeDistrict = (district: string) => {
@@ -576,7 +615,7 @@ export function BusanMainPage() {
                   if (event.key === 'Enter') {
                     const keyword = searchInput.trim();
                     setSearchKeyword(keyword);
-                    void loadAttractions(keyword);
+                    void loadAttractions(keyword, 1, false);
                   }
                 }}
                 placeholder="명소 검색 (예: 해운대, 영도대교)"
@@ -590,7 +629,7 @@ export function BusanMainPage() {
                 onClick={() => {
                   const keyword = searchInput.trim();
                   setSearchKeyword(keyword);
-                  void loadAttractions(keyword);
+                  void loadAttractions(keyword, 1, false);
                 }}
               >
                 <Search className="mr-1 h-4 w-4" /> 검색
@@ -636,6 +675,31 @@ export function BusanMainPage() {
                 </Button>
               ))}
             </div>
+
+            {attractionHasNext && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-3 py-3">
+                <div className="text-xs font-semibold leading-relaxed text-[#4F6D79]">
+                  아직 더 많은 부산 명소가 있습니다. 다음 데이터를 불러오면 목록과 지역 필터에 이어서 추가됩니다.
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full border-[#0288D1] bg-[#E1F5FE] px-4 text-[#01579B] hover:bg-[#B3E5FC]"
+                  disabled={isLoadingMore}
+                  onClick={() => loadAttractions(searchKeyword, attractionPage + 1, true)}
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                      불러오는 중
+                    </>
+                  ) : (
+                    `다음 24개 불러오기`
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
@@ -776,6 +840,25 @@ export function BusanMainPage() {
                     );
                   })}
                 </div>
+                {attractionHasNext && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 w-full rounded-full border-[#0288D1] bg-[#E1F5FE] text-[#01579B] hover:bg-[#B3E5FC]"
+                    disabled={isLoadingMore}
+                    onClick={() => loadAttractions(searchKeyword, attractionPage + 1, true)}
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                        불러오는 중
+                      </>
+                    ) : (
+                      '더 많은 명소 보기'
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           </div>
