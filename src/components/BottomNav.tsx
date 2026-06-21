@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Compass, Wand2, Image, CreditCard, Settings, Users, BookOpenCheck, Waves } from 'lucide-react';
+import { Compass, Wand2, Image, Settings, Users, BookOpenCheck, Map } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LoginRequiredPopup } from '@/components/ui/alert-popup';
@@ -13,7 +13,7 @@ const navItems = [
   { id: 'curriculums', href: '/curriculums', icon: BookOpenCheck, label: '커리큘럼', requiresAuth: true },
   { id: 'my-books', href: '/my-books', icon: Image, label: '내 도서', requiresAuth: true },
   { id: 'my-characters', href: '/my-characters', icon: Users, label: '캐릭터', requiresAuth: true },
-  { id: 'busan', href: '/busan', icon: Waves, label: 'J×Busan', requiresAuth: true },
+  { id: 'local', href: '/local', icon: Map, label: '지역', requiresAuth: true },
   { id: 'settings', href: '/settings', icon: Settings, label: '설정', requiresAuth: true },
 ];
 

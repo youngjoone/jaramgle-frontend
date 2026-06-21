@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Compass, Image as ImageIcon, Wand2, CreditCard, Settings, Users, BookOpenCheck, Waves } from 'lucide-react';
+import { Compass, Image as ImageIcon, Wand2, CreditCard, Settings, Users, BookOpenCheck, Map } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ const navItems = [
 ];
 
 const bottomItems = [
-  { id: 'busan', href: '/busan', icon: Waves, label: 'J×Busan', requiresAuth: true },
+  { id: 'local', href: '/local', icon: Map, label: '지역 콜라보', requiresAuth: true },
   { id: 'subscription', href: '/subscription', icon: CreditCard, label: '결제', requiresAuth: true },
   { id: 'settings', href: '/settings', icon: Settings, label: '설정', requiresAuth: true },
 ];
