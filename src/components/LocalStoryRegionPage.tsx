@@ -8,6 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
 import { BACKEND_ORIGIN, apiFetch } from '@/lib/api';
+import {
+  getKakaoMapsErrorMessage,
+  loadKakaoMapsSdk,
+  type KakaoInfoWindow,
+  type KakaoMap,
+  type KakaoMapsSdk,
+  type KakaoMarker,
+  type KakaoMarkerImage,
+} from '@/lib/kakaoMaps';
 import { type LocalRegionConfig, type LocalThemeKey } from '@/lib/localStoryRegions';
 
 type ThemeCard = {
@@ -81,13 +90,6 @@ type LocalStoryPageResponse = {
   has_next?: boolean | null;
 };
 
-declare global {
-  interface Window {
-    kakao?: any;
-  }
-}
-
-let kakaoSdkPromise: Promise<any> | null = null;
 const MAP_PREVIEW_PIN_LIMIT = 10;
 const themeIcons: Record<LocalThemeKey, ComponentType<{ className?: string }>> = {
   CITY_STORY: Compass,
@@ -176,7 +178,7 @@ function displayArea(place: LocalStorySource, fallbackRegion: string): string {
   return district || place.address || fallbackRegion;
 }
 
-function createPinMarkerImage(kakao: any, size: number, fill: string, stroke: string) {
+function createPinMarkerImage(kakao: KakaoMapsSdk, size: number, fill: string, stroke: string) {
   const strokeWidth = Math.max(2, Math.round(size * 0.08));
   const circleY = Math.round(size * 0.36);
   const radius = Math.round(size * 0.24);
@@ -200,43 +202,6 @@ function createPinMarkerImage(kakao: any, size: number, fill: string, stroke: st
   );
 }
 
-function loadKakaoMapsSdk(appKey: string): Promise<any> {
-  if (typeof window === 'undefined') return Promise.reject(new Error('window is not available'));
-  if (window.kakao?.maps) return Promise.resolve(window.kakao);
-  if (kakaoSdkPromise) return kakaoSdkPromise;
-
-  kakaoSdkPromise = new Promise((resolve, reject) => {
-    const existing = document.getElementById('kakao-map-sdk') as HTMLScriptElement | null;
-    if (existing) {
-      existing.addEventListener('load', () => {
-        if (!window.kakao?.maps) {
-          reject(new Error('카카오맵 SDK 로드 실패'));
-          return;
-        }
-        window.kakao.maps.load(() => resolve(window.kakao));
-      });
-      existing.addEventListener('error', () => reject(new Error('카카오맵 SDK 스크립트 로드 실패')));
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = 'kakao-map-sdk';
-    script.async = true;
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false`;
-    script.onload = () => {
-      if (!window.kakao?.maps) {
-        reject(new Error('카카오맵 SDK 로드 실패'));
-        return;
-      }
-      window.kakao.maps.load(() => resolve(window.kakao));
-    };
-    script.onerror = () => reject(new Error('카카오맵 SDK 스크립트 로드 실패'));
-    document.head.appendChild(script);
-  });
-
-  return kakaoSdkPromise;
-}
-
 export function LocalStoryRegionPage({ config }: { config: LocalRegionConfig }) {
   const router = useRouter();
   const [theme, setTheme] = useState<LocalThemeKey>('CITY_STORY');
@@ -254,11 +219,15 @@ export function LocalStoryRegionPage({ config }: { config: LocalRegionConfig }) 
   const [hasNext, setHasNext] = useState(false);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<any>(null);
-  const infoWindowRef = useRef<any>(null);
-  const markerListRef = useRef<Array<{ key: string; marker: any }>>([]);
-  const markerMapRef = useRef<Record<string, any>>({});
-  const markerStyleRef = useRef<{ defaultImage: any; hoverImage: any; activeImage: any } | null>(null);
+  const mapRef = useRef<KakaoMap | null>(null);
+  const infoWindowRef = useRef<KakaoInfoWindow | null>(null);
+  const markerListRef = useRef<Array<{ key: string; marker: KakaoMarker }>>([]);
+  const markerMapRef = useRef<Record<string, KakaoMarker>>({});
+  const markerStyleRef = useRef<{
+    defaultImage: KakaoMarkerImage;
+    hoverImage: KakaoMarkerImage;
+    activeImage: KakaoMarkerImage;
+  } | null>(null);
   const selectedKeyRef = useRef<string | null>(null);
   const kakaoAppKey = (process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY || '').trim();
 
@@ -432,8 +401,9 @@ export function LocalStoryRegionPage({ config }: { config: LocalRegionConfig }) 
           mapRef.current.setBounds(bounds);
         }
       })
-      .catch(() => {
-        if (!cancelled) setLoadError('카카오맵을 불러오지 못했습니다. 키/도메인 설정을 확인해 주세요.');
+      .catch((error) => {
+        console.error(error);
+        if (!cancelled) setLoadError(getKakaoMapsErrorMessage(error));
       });
 
     return () => {

@@ -8,6 +8,15 @@ import { Button } from '@/components/ui/button';
 import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
 import { BACKEND_ORIGIN, apiFetch } from '@/lib/api';
 import { Input } from '@/components/ui/input';
+import {
+  getKakaoMapsErrorMessage,
+  loadKakaoMapsSdk,
+  type KakaoInfoWindow,
+  type KakaoMap,
+  type KakaoMapsSdk,
+  type KakaoMarker,
+  type KakaoMarkerImage,
+} from '@/lib/kakaoMaps';
 
 type ThemeKey = 'CITY_INTRO' | 'HERITAGE' | 'MULTICULTURAL';
 
@@ -99,12 +108,6 @@ type BusanAttractionPageResponse = {
   has_next?: boolean | null;
 };
 
-declare global {
-  interface Window {
-    kakao?: any;
-  }
-}
-
 function parseApiError(err: unknown): string {
   if (err instanceof Error) {
     try {
@@ -161,7 +164,7 @@ function mergeAttractions(
   return merged;
 }
 
-function createPinMarkerImage(kakao: any, size: number, fill: string, stroke: string) {
+function createPinMarkerImage(kakao: KakaoMapsSdk, size: number, fill: string, stroke: string) {
   const strokeWidth = Math.max(2, Math.round(size * 0.08));
   const circleY = Math.round(size * 0.36);
   const radius = Math.round(size * 0.24);
@@ -189,55 +192,7 @@ function createPinMarkerImage(kakao: any, size: number, fill: string, stroke: st
   );
 }
 
-let kakaoSdkPromise: Promise<any> | null = null;
 const MAP_PREVIEW_PIN_LIMIT = 8;
-
-function loadKakaoMapsSdk(appKey: string): Promise<any> {
-  if (typeof window === 'undefined') {
-    return Promise.reject(new Error('window is not available'));
-  }
-
-  if (window.kakao?.maps) {
-    return Promise.resolve(window.kakao);
-  }
-
-  if (kakaoSdkPromise) {
-    return kakaoSdkPromise;
-  }
-
-  kakaoSdkPromise = new Promise((resolve, reject) => {
-    const existing = document.getElementById('kakao-map-sdk') as HTMLScriptElement | null;
-    if (existing) {
-      existing.addEventListener('load', () => {
-        if (!window.kakao?.maps) {
-          reject(new Error('카카오맵 SDK 로드에 실패했습니다.'));
-          return;
-        }
-        window.kakao.maps.load(() => resolve(window.kakao));
-      });
-      existing.addEventListener('error', () => reject(new Error('카카오맵 SDK 스크립트 로드 실패')));
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = 'kakao-map-sdk';
-    script.async = true;
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false`;
-
-    script.onload = () => {
-      if (!window.kakao?.maps) {
-        reject(new Error('카카오맵 SDK 로드에 실패했습니다.'));
-        return;
-      }
-      window.kakao.maps.load(() => resolve(window.kakao));
-    };
-
-    script.onerror = () => reject(new Error('카카오맵 SDK 스크립트 로드 실패'));
-    document.head.appendChild(script);
-  });
-
-  return kakaoSdkPromise;
-}
 
 export function BusanMainPage() {
   const router = useRouter();
@@ -257,11 +212,15 @@ export function BusanMainPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<any>(null);
-  const infoWindowRef = useRef<any>(null);
-  const markerListRef = useRef<Array<{ key: string; marker: any }>>([]);
-  const markerMapRef = useRef<Record<string, any>>({});
-  const markerStyleRef = useRef<{ defaultImage: any; hoverImage: any; activeImage: any } | null>(null);
+  const mapRef = useRef<KakaoMap | null>(null);
+  const infoWindowRef = useRef<KakaoInfoWindow | null>(null);
+  const markerListRef = useRef<Array<{ key: string; marker: KakaoMarker }>>([]);
+  const markerMapRef = useRef<Record<string, KakaoMarker>>({});
+  const markerStyleRef = useRef<{
+    defaultImage: KakaoMarkerImage;
+    hoverImage: KakaoMarkerImage;
+    activeImage: KakaoMarkerImage;
+  } | null>(null);
   const selectedKeyRef = useRef<string | null>(null);
 
   const kakaoAppKey = (process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY || '').trim();
@@ -423,6 +382,9 @@ export function BusanMainPage() {
         const bounds = new kakao.maps.LatLngBounds();
 
         visibleMapAttractions.forEach((item) => {
+          if (item.lat === null || item.lng === null) {
+            return;
+          }
           const key = getAttractionKey(item);
           const marker = new kakao.maps.Marker({
             map: mapRef.current,
@@ -465,8 +427,11 @@ export function BusanMainPage() {
         }
 
         if (visibleMapAttractions.length === 1) {
-          mapRef.current.setCenter(new kakao.maps.LatLng(visibleMapAttractions[0].lat, visibleMapAttractions[0].lng));
-          mapRef.current.setLevel(5);
+          const only = visibleMapAttractions[0];
+          if (only.lat !== null && only.lng !== null) {
+            mapRef.current.setCenter(new kakao.maps.LatLng(only.lat, only.lng));
+            mapRef.current.setLevel(5);
+          }
         } else if (!bounds.isEmpty()) {
           mapRef.current.setBounds(bounds);
         }
@@ -474,7 +439,7 @@ export function BusanMainPage() {
       .catch((error) => {
         console.error(error);
         if (!cancelled) {
-          setLoadError('카카오맵을 불러오지 못했습니다. 키/도메인 설정을 확인해 주세요.');
+          setLoadError(getKakaoMapsErrorMessage(error));
         }
       });
 
